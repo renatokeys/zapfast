@@ -1,0 +1,103 @@
+run:
+  timeout: 5m
+  go: "1.25"
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gocognit
+    - gocritic
+    - godot
+    - gosec
+    - govet
+    - paralleltest
+    - revive
+    - staticcheck
+    - tparallel
+    - unconvert
+    - unparam
+
+linters-settings:
+  errcheck:
+    check-blank: false
+    check-type-assertions: true
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+  exhaustive:
+    default-signifies-exhaustive: true
+  gocognit:
+    min-complexity: 30
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+    disabled-checks:
+      - hugeParam
+      - rangeValCopy
+  godot:
+    scope: declarations
+    capital: true
+  gosec:
+    excludes:
+      - G104 # duplicates errcheck
+      - G304 # file inclusion via variable
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+      - shadow
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: range
+      - name: receiver-naming
+      - name: superfluous-else
+      - name: time-naming
+      - name: var-declaration
+      - name: var-naming
+      - name: unexported-return
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - bin
+    - vendor
+    - api/openapi
+    - deployments
+    - docs
+    - test/golden
+    - test/fixtures
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocognit
+        - gosec
+        - errcheck
+        - unparam
+    - path: cmd/worker/main.go
+      linters:
+        - revive
+        - unparam
