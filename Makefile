@@ -44,13 +44,13 @@ help:
 build: build-api build-worker
 
 build-api:
-	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(APP) .
+	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(APP) ./cmd/api
 
 build-worker:
 	$(GO) build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(APP)-worker ./cmd/worker
 
 run:
-	$(GO) run .
+	$(GO) run ./cmd/api
 
 test:
 	$(GO) test $(GOFLAGS) -race -count=1 ./...

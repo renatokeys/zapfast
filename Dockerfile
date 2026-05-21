@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
             -X 'main.version=${VERSION}' \
             -X 'main.commit=${COMMIT}' \
             -X 'main.buildDate=${BUILDDATE}'" \
-        -o /out/zapfast ./
+        -o /out/zapfast ./cmd/api
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
