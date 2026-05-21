@@ -8,7 +8,7 @@ fullnameOverride: ""
 image:
   repository: ghcr.io/renatokeys/zapfast
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 imagePullSecrets: []
 
