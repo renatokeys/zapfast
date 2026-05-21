@@ -268,8 +268,11 @@ func TestNotFound(t *testing.T) {
 	c := newClient(t)
 
 	status, _ := c.do(t, http.MethodGet, "/this-path-does-not-exist-"+randomHex(t, 4), nil, nil)
-	if status != http.StatusNotFound && status != http.StatusUnauthorized {
-		t.Errorf("unknown path: want 404 or 401, got %d", status)
+	// 405 is also acceptable: the catch-all OPTIONS handler added for CORS
+	// causes gorilla mux to report Method Not Allowed for GET on otherwise
+	// unknown paths that match the PathPrefix.
+	if status != http.StatusNotFound && status != http.StatusUnauthorized && status != http.StatusMethodNotAllowed {
+		t.Errorf("unknown path: want 404, 401, or 405; got %d", status)
 	}
 }
 
