@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>zapfast — Entrar</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] }, colors: { zfprimary: '#0f172a', zfaccent: { 500: '#10b981', 600: '#059669' } } } } };
+  </script>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body class="font-sans bg-slate-50 min-h-screen">
+
+<div class="min-h-screen grid lg:grid-cols-2">
+
+  <!-- LEFT: FORM -->
+  <div class="flex flex-col px-6 py-10 lg:px-16 lg:py-14 bg-white">
+    <a href="index.html" class="inline-flex items-center gap-2 mb-12">
+      <img src="assets/logo.svg" alt="zapfast" class="h-9" />
+    </a>
+
+    <div class="max-w-md w-full mx-auto flex-1 flex flex-col justify-center">
+      <h1 class="text-3xl font-extrabold text-zfprimary mb-2">Entre na sua conta</h1>
+      <p class="text-slate-600 mb-8">Cole seu admin token para acessar o painel.</p>
+
+      <form id="loginForm" class="space-y-5">
+        <div>
+          <label class="block text-sm font-semibold text-zfprimary mb-2">Endpoint da API</label>
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/></svg>
+            <input id="endpoint" type="url" required value="https://zapfast.5-161-161-140.nip.io"
+              class="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-sm" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-zfprimary mb-2">Admin token</label>
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <input id="token" type="password" required placeholder="cole o ADMIN_TOKEN aqui"
+              class="w-full pl-10 pr-12 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-sm font-mono" />
+            <button type="button" onclick="toggleToken()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
+              <svg id="eyeIcon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="errBox" class="hidden p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"></div>
+
+        <button id="submitBtn" type="submit" class="zf-btn-primary w-full justify-center !py-3.5">
+          <span id="submitLabel">Entrar no painel</span>
+          <svg id="spinner" class="hidden animate-spin w-5 h-5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="50 60"/></svg>
+        </button>
+
+        <p class="text-center text-xs text-slate-500">
+          Não tem um endpoint?
+          <a href="https://github.com/renatokeys/zapfast" target="_blank" class="zf-link">Faça self-host em 1 comando</a>
+        </p>
+      </form>
+    </div>
+
+    <p class="text-xs text-slate-400 text-center mt-10">© 2026 zapfast — open-source MIT</p>
+  </div>
+
+  <!-- RIGHT: VISUAL -->
+  <div class="hidden lg:flex zf-hero-bg text-white relative overflow-hidden items-center justify-center p-12">
+    <div class="zf-grid-bg absolute inset-0 opacity-60"></div>
+    <div class="relative max-w-md">
+      <div class="inline-flex items-center gap-2 px-3 py-1 mb-6 text-xs font-semibold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+        <span class="dot-live"></span> backend ao vivo
+      </div>
+      <h2 class="text-4xl font-extrabold leading-tight mb-4">
+        Painel multi-tenant
+        <span class="bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-transparent">para escalar.</span>
+      </h2>
+      <p class="text-slate-300 mb-8">Gerencie 1, 100 ou 1000 instâncias de WhatsApp com o mesmo nível de controle. Cada uma com seu QR, token e webhook.</p>
+      <div class="space-y-3">
+        <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-800/40 border border-slate-700">
+          <svg class="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          <div>
+            <p class="font-semibold text-white">QR code em tempo real</p>
+            <p class="text-sm text-slate-400">Sem refresh, sem polling manual.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-800/40 border border-slate-700">
+          <svg class="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          <div>
+            <p class="font-semibold text-white">Disparo via API REST</p>
+            <p class="text-sm text-slate-400">Texto, mídia, botões, listas, PIX.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-800/40 border border-slate-700">
+          <svg class="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          <div>
+            <p class="font-semibold text-white">Webhooks por instância</p>
+            <p class="text-sm text-slate-400">Receba eventos em tempo real onde quiser.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleToken() {
+    const i = document.getElementById('token');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const savedEndpoint = localStorage.getItem('zf_endpoint');
+    const savedToken = localStorage.getItem('zf_token');
+    if (savedEndpoint) document.getElementById('endpoint').value = savedEndpoint;
+    if (savedToken) {
+      window.location.href = 'app/index.html';
+    }
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const endpoint = document.getElementById('endpoint').value.trim().replace(/\/+$/, '');
+    const token = document.getElementById('token').value.trim();
+    const err = document.getElementById('errBox');
+    const btn = document.getElementById('submitBtn');
+    const label = document.getElementById('submitLabel');
+    const spinner = document.getElementById('spinner');
+
+    err.classList.add('hidden');
+    btn.disabled = true;
+    label.textContent = 'Validando...';
+    spinner.classList.remove('hidden');
+
+    try {
+      const health = await fetch(`${endpoint}/health`);
+      if (!health.ok) throw new Error('endpoint inválido');
+
+      const r = await fetch(`${endpoint}/admin/users`, { headers: { 'Authorization': token } });
+      if (r.status === 401 || r.status === 403) throw new Error('token inválido');
+      if (!r.ok) throw new Error(`erro ${r.status}`);
+
+      localStorage.setItem('zf_endpoint', endpoint);
+      localStorage.setItem('zf_token', token);
+      window.location.href = 'app/index.html';
+    } catch (e) {
+      err.textContent = 'Falha ao conectar: ' + e.message;
+      err.classList.remove('hidden');
+      btn.disabled = false;
+      label.textContent = 'Entrar no painel';
+      spinner.classList.add('hidden');
+    }
+  });
+</script>
+
+</body>
+</html>

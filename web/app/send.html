@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>zapfast — Enviar mensagem</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] }, colors: { zfprimary: '#0f172a', zfaccent: { 400: '#34d399', 500: '#10b981', 600: '#059669' } } } } };
+  </script>
+  <link rel="stylesheet" href="../assets/styles.css" />
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="font-sans bg-slate-50">
+
+<div x-data="sendPage()" x-init="init()" class="min-h-screen flex">
+
+  <aside class="w-64 bg-zfprimary text-slate-200 fixed h-screen">
+    <div class="p-6 border-b border-slate-800">
+      <a href="index.html"><img src="../assets/logo-white.svg" alt="zapfast" class="h-8" /></a>
+    </div>
+    <nav class="p-3 space-y-1 text-sm">
+      <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/60">Instâncias</a>
+      <a href="send.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">Enviar mensagem</a>
+      <a href="docs.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/60">Documentação</a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 ml-64 p-8 max-w-4xl">
+    <h1 class="text-2xl font-extrabold text-zfprimary mb-1">Enviar mensagem</h1>
+    <p class="text-sm text-slate-600 mb-8">Teste a integração mandando um texto simples via REST.</p>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+      <form @submit.prevent="send()" class="zf-card !p-7 space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-zfprimary mb-2">Instância</label>
+          <select x-model="instanceId" required class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+            <option value="">Selecione...</option>
+            <template x-for="i in instances" :key="i.id">
+              <option :value="i.id" x-text="(i.name || '(sem nome)') + ' — ' + i.id.slice(0,8)"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-zfprimary mb-2">Número destinatário</label>
+          <input x-model="phone" required type="tel" placeholder="5511987654321"
+            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-mono" />
+          <p class="text-xs text-slate-500 mt-1">Inclua código do país (55 = Brasil), sem o +.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-zfprimary mb-2">Mensagem</label>
+          <textarea x-model="message" required rows="5" placeholder="Olá! Esta é uma mensagem teste do zapfast."
+            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"></textarea>
+        </div>
+
+        <div x-show="result" :class="success ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'" class="p-3 rounded-lg border text-sm font-mono break-all" x-text="result"></div>
+
+        <button type="submit" :disabled="sending" class="zf-btn-primary w-full justify-center !py-3">
+          <span x-text="sending ? 'Enviando...' : 'Enviar mensagem'"></span>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        </button>
+      </form>
+
+      <div class="space-y-4">
+        <div class="zf-card !p-6 bg-zfprimary !text-slate-200 border-slate-700">
+          <h3 class="text-emerald-400 text-xs uppercase tracking-wider font-bold mb-3">curl equivalente</h3>
+          <pre class="text-xs font-mono leading-relaxed whitespace-pre-wrap break-all" x-text="curlEquivalent()"></pre>
+        </div>
+        <div class="zf-card !p-6">
+          <h3 class="font-bold text-zfprimary mb-3">Dicas</h3>
+          <ul class="text-sm text-slate-600 space-y-2">
+            <li class="flex gap-2">
+              <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
+              A instância precisa estar conectada (QR escaneado).
+            </li>
+            <li class="flex gap-2">
+              <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
+              Use o token da instância no header <code class="font-mono text-xs">Token:</code>.
+            </li>
+            <li class="flex gap-2">
+              <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
+              Para mídia, JSON aceita <code class="font-mono text-xs">base64</code> ou URL pública.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  function sendPage() {
+    return {
+      endpoint: localStorage.getItem('zf_endpoint') || '',
+      token: localStorage.getItem('zf_token') || '',
+      instances: [],
+      instanceId: new URLSearchParams(location.search).get('id') || '',
+      phone: '',
+      message: '',
+      sending: false,
+      result: '',
+      success: false,
+
+      async init() {
+        if (!this.token) return location.href = '../login.html';
+        try {
+          const r = await fetch(`${this.endpoint}/admin/users`, { headers: { Authorization: this.token } });
+          const d = await r.json();
+          this.instances = (d.data || []).filter(i => i.id);
+        } catch (e) {}
+      },
+
+      curlEquivalent() {
+        const inst = this.instances.find(i => i.id === this.instanceId);
+        const itoken = inst?.token || 'INSTANCE_TOKEN';
+        return `curl -X POST ${this.endpoint}/chat/send/text \\
+  -H "Token: ${itoken}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "Phone": "${this.phone || '5511987654321'}",
+    "Body": "${(this.message || 'Olá!').replace(/"/g,'\\"')}"
+  }'`;
+      },
+
+      async send() {
+        this.sending = true; this.result = ''; this.success = false;
+        const inst = this.instances.find(i => i.id === this.instanceId);
+        const itoken = inst?.token || this.token;
+        try {
+          const r = await fetch(`${this.endpoint}/chat/send/text`, {
+            method: 'POST',
+            headers: { Token: itoken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ Phone: this.phone, Body: this.message }),
+          });
+          const d = await r.json();
+          if (r.ok && d.success !== false) {
+            this.success = true;
+            this.result = '✓ Enviado! ' + JSON.stringify(d.data || d);
+          } else {
+            this.success = false;
+            this.result = '✗ ' + (d.error || `erro ${r.status}`);
+          }
+        } catch (e) {
+          this.success = false;
+          this.result = '✗ ' + e.message;
+        }
+        this.sending = false;
+      },
+    };
+  }
+</script>
+
+</body>
+</html>

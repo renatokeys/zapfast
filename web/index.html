@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>zapfast — API WhatsApp open-source, drop-in compatible com Z-API</title>
+  <meta name="description" content="API WhatsApp self-hosted e open-source. Drop-in compatible com Z-API. 1000+ instâncias por servidor. MIT license." />
+  <link rel="icon" type="image/svg+xml" href="/zapfast/assets/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            zfprimary: '#0f172a',
+            zfaccent: { 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857' },
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="assets/styles.css" />
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="font-sans">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-2">
+        <img src="assets/logo.svg" alt="zapfast" class="h-9" />
+      </a>
+      <nav class="hidden lg:flex items-center gap-7 text-sm font-medium text-slate-700">
+        <a href="#solucao" class="hover:text-zfaccent-600">Solução</a>
+        <a href="#features" class="hover:text-zfaccent-600">Features</a>
+        <a href="#comparacao" class="hover:text-zfaccent-600">Z-API vs zapfast</a>
+        <a href="#planos" class="hover:text-zfaccent-600">Planos</a>
+        <a href="app/docs.html" class="hover:text-zfaccent-600">Docs</a>
+        <span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <svg viewBox="0 0 20 20" fill="currentColor" class="w-3.5 h-3.5"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm3.7 6.3a1 1 0 00-1.4-1.4L9 10.2 7.7 8.9a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
+          MIT
+        </span>
+      </nav>
+      <div class="flex items-center gap-3">
+        <a href="login.html" class="text-sm font-semibold text-slate-700 hover:text-zfaccent-600">Login</a>
+        <a href="login.html" class="zf-btn-primary text-sm !py-2.5 !px-4">
+          <span>Acessar painel</span>
+          <svg width="14" height="14" viewBox="0 0 17 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 6H1.5M10.5 11L15.5 6M10.5 1L15.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="zf-hero-bg text-white relative overflow-hidden">
+    <div class="zf-grid-bg absolute inset-0 opacity-60"></div>
+    <div class="max-w-7xl mx-auto px-6 py-20 lg:py-28 relative grid lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 mb-6 text-xs font-semibold rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+          <span class="dot-live"></span>
+          Open-source · 100% drop-in compatible com Z-API
+        </div>
+        <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight mb-6">
+          API WhatsApp <span class="text-emerald-400">self-hosted</span> que escala para
+          <span class="bg-gradient-to-r from-emerald-300 to-emerald-500 bg-clip-text text-transparent">1000+ instâncias</span> por servidor.
+        </h1>
+        <p class="text-lg text-slate-300 mb-8 leading-relaxed max-w-xl">
+          Substitua a Z-API mantendo 100% da sua integração atual. Open-source, MIT, controle total dos seus dados.
+          Suporte a botões, listas, PIX, multi-tenant e webhooks nativos.
+        </p>
+        <div class="flex flex-wrap gap-4 mb-6">
+          <a href="login.html" class="zf-btn-primary">
+            Acessar painel
+            <svg width="16" height="12" viewBox="0 0 17 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 6H1.5M10.5 11L15.5 6M10.5 1L15.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a href="https://github.com/renatokeys/zapfast" target="_blank" class="zf-btn-outline">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.69 1.24 3.34.95.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.19 1.18a11.06 11.06 0 0 1 5.81 0c2.22-1.5 3.19-1.18 3.19-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.66.79.55A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
+            Star no GitHub
+          </a>
+        </div>
+        <div class="flex items-center gap-4 text-xs text-slate-400">
+          <div class="flex items-center gap-2">
+            <span class="dot-live"></span>
+            <a href="https://zapfast.5-161-161-140.nip.io/health" target="_blank" class="hover:text-emerald-400 underline-offset-4 hover:underline">demo ao vivo</a>
+          </div>
+          <span>·</span>
+          <span>sem cartão de crédito · self-host gratuito</span>
+        </div>
+      </div>
+      <div class="relative">
+        <!-- CODE / BROWSER PREVIEW -->
+        <div class="rounded-2xl bg-slate-900/80 backdrop-blur border border-slate-700 shadow-2xl overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-3 bg-slate-800/80 border-b border-slate-700">
+            <span class="w-3 h-3 rounded-full bg-red-500/80"></span>
+            <span class="w-3 h-3 rounded-full bg-yellow-500/80"></span>
+            <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
+            <span class="ml-3 text-xs text-slate-400 font-mono">POST /instances/{id}/send-text</span>
+          </div>
+          <div class="p-5 zf-code !rounded-none !bg-transparent text-sm leading-relaxed">
+<pre><span class="c">// Drop-in compatible com Z-API</span>
+<span class="k">curl</span> -X POST \
+  https://zapfast.io/instances/<span class="v">$ID</span>/send-text \
+  -H <span class="s">"Client-Token: $TOKEN"</span> \
+  -d <span class="s">'{
+    "phone": "5511987654321",
+    "message": "Olá! Tudo bem?"
+  }'</span>
+
+<span class="c">// Response:</span>
+{
+  <span class="s">"messageId"</span>: <span class="s">"3EB0..."</span>,
+  <span class="s">"status"</span>: <span class="s">"sent"</span>
+}</pre>
+          </div>
+        </div>
+        <!-- floating stats -->
+        <div class="absolute -bottom-6 -left-6 bg-white rounded-xl shadow-2xl px-5 py-4 flex items-center gap-3 text-slate-900 border border-slate-200">
+          <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 font-medium">latência média</div>
+            <div class="text-lg font-bold leading-tight">120ms</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUSTED BY / METRICS BAR -->
+  <section class="bg-slate-50 border-y border-slate-200">
+    <div class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-2 lg:grid-cols-4 gap-6 text-center">
+      <div>
+        <div class="zf-stat-num">1000+</div>
+        <div class="text-sm text-slate-600 mt-1">instâncias por servidor</div>
+      </div>
+      <div>
+        <div class="zf-stat-num">100%</div>
+        <div class="text-sm text-slate-600 mt-1">compatível com Z-API</div>
+      </div>
+      <div>
+        <div class="zf-stat-num">MIT</div>
+        <div class="text-sm text-slate-600 mt-1">licença open-source</div>
+      </div>
+      <div>
+        <div class="zf-stat-num">0$</div>
+        <div class="text-sm text-slate-600 mt-1">self-hosted forever</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FUNCIONAMENTO -->
+  <section id="solucao" class="py-20 lg:py-28">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="text-center max-w-3xl mx-auto mb-14">
+        <p class="zf-section-eyebrow mb-3">Como funciona o zapfast</p>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-zfprimary leading-tight">
+          Menos complexidade, mais controle. Self-hosted, com a mesma DX da Z-API.
+        </h2>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-5">
+        <div class="zf-card">
+          <div class="zf-num-badge mb-4">01</div>
+          <p class="font-semibold text-zfprimary mb-2">Provisione em 1 comando</p>
+          <p class="text-sm text-slate-600 leading-relaxed">docker compose up e tudo pronto: Postgres, Redis, gateway WhatsApp.</p>
+        </div>
+        <div class="zf-card">
+          <div class="zf-num-badge mb-4">02</div>
+          <p class="font-semibold text-zfprimary mb-2">REST + Webhooks</p>
+          <p class="text-sm text-slate-600 leading-relaxed">API REST documentada (OpenAPI). Webhooks de mensagens, status, presença.</p>
+        </div>
+        <div class="zf-card">
+          <div class="zf-num-badge mb-4">03</div>
+          <p class="font-semibold text-zfprimary mb-2">Multi-tenant nativo</p>
+          <p class="text-sm text-slate-600 leading-relaxed">Crie quantas instâncias quiser — cada uma com seu QR code e token isolado.</p>
+        </div>
+        <div class="zf-card">
+          <div class="zf-num-badge mb-4">04</div>
+          <p class="font-semibold text-zfprimary mb-2">Integra com qualquer stack</p>
+          <p class="text-sm text-slate-600 leading-relaxed">CRMs, ERPs, n8n, Make. SDKs JavaScript, Python, Go — ou só curl.</p>
+        </div>
+        <div class="zf-card">
+          <div class="zf-num-badge mb-4">05</div>
+          <p class="font-semibold text-zfprimary mb-2">Sem caixa-preta</p>
+          <p class="text-sm text-slate-600 leading-relaxed">Código aberto MIT. Audite, modifique, contribua. Sem vendor lock-in.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="py-20 bg-slate-50 border-y border-slate-200">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="text-center max-w-3xl mx-auto mb-14">
+        <p class="zf-section-eyebrow mb-3">Recursos</p>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-zfprimary mb-4">O que o zapfast entrega</h2>
+        <p class="text-slate-600 text-lg">Tudo que você precisa pra rodar atendimento, automação e disparo via WhatsApp em escala.</p>
+      </div>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="zf-card">
+          <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+          </div>
+          <h3 class="font-bold text-zfprimary mb-2">Mensagens ricas</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Texto, imagem, áudio, vídeo, documentos, localização, contatos, reações.</p>
+        </div>
+        <div class="zf-card">
+          <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </div>
+          <h3 class="font-bold text-zfprimary mb-2">Botões e listas</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Mensagens interativas com botões, listas e enquetes — capture clicks no webhook.</p>
+        </div>
+        <div class="zf-card">
+          <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+          </div>
+          <h3 class="font-bold text-zfprimary mb-2">PIX e pagamentos</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Envie cobrança PIX dentro da conversa, com webhook de status do pagamento.</p>
+        </div>
+        <div class="zf-card">
+          <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+          <h3 class="font-bold text-zfprimary mb-2">Storage S3 integrado</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Upload automático de mídia recebida pro S3/R2/MinIO. URLs públicas opcionais.</p>
+        </div>
+        <div class="zf-card">
+          <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <h3 class="font-bold text-zfprimary mb-2">Performance Go</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Backend em Go usando whatsmeow. 1000+ instâncias num servidor 4 vCPU.</p>
+        </div>
+        <div class="zf-card">
+          <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">
+            <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h3 class="font-bold text-zfprimary mb-2">Token por instância</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">Cada instância tem seu próprio token. Revogue, rotacione, audite por tenant.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARAÇÃO -->
+  <section id="comparacao" class="py-20 lg:py-28">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center max-w-3xl mx-auto mb-14">
+        <p class="zf-section-eyebrow mb-3">comparação direta</p>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-zfprimary">Z-API vs zapfast</h2>
+        <p class="text-slate-600 mt-3 text-lg">Migre sua integração mantendo todos os endpoints. A diferença está no preço e no controle.</p>
+      </div>
+
+      <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-zfprimary">
+            <tr>
+              <th class="text-left p-4 font-semibold">Recurso</th>
+              <th class="p-4 font-semibold text-center text-slate-500">Z-API</th>
+              <th class="p-4 font-semibold text-center bg-emerald-50 text-emerald-700">zapfast</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            <tr><td class="p-4 font-medium text-zfprimary">Preço por instância</td><td class="p-4 text-center text-slate-600">R$ 99,99/mês</td><td class="p-4 text-center bg-emerald-50/40 font-semibold text-emerald-700">Self-host gratuito</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Código aberto</td><td class="p-4 text-center">—</td><td class="p-4 text-center bg-emerald-50/40">MIT</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Botões e listas</td><td class="p-4 text-center">Sim</td><td class="p-4 text-center bg-emerald-50/40">Sim</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">PIX integrado</td><td class="p-4 text-center">Sim</td><td class="p-4 text-center bg-emerald-50/40">Sim</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Webhooks ilimitados</td><td class="p-4 text-center">Sim</td><td class="p-4 text-center bg-emerald-50/40">Sim</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Storage de mídia</td><td class="p-4 text-center">Limitado</td><td class="p-4 text-center bg-emerald-50/40">S3/R2/MinIO ilimitado</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Multi-tenant</td><td class="p-4 text-center">1 número/instância</td><td class="p-4 text-center bg-emerald-50/40">1000+ por servidor</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Controle de dados</td><td class="p-4 text-center">Cloud terceirizada</td><td class="p-4 text-center bg-emerald-50/40 font-semibold">Sua infra</td></tr>
+            <tr><td class="p-4 font-medium text-zfprimary">Vendor lock-in</td><td class="p-4 text-center">Sim</td><td class="p-4 text-center bg-emerald-50/40 font-semibold text-emerald-700">Não</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-center text-xs text-slate-500 mt-4">* zapfast é um fork open-source baseado em wuzapi. Não tem afiliação com Z-API.</p>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="planos" class="py-20 bg-slate-50 border-y border-slate-200">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="text-center max-w-3xl mx-auto mb-14">
+        <p class="zf-section-eyebrow mb-3">Investimento</p>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-zfprimary">Comece grátis. Escale sem surpresas.</h2>
+      </div>
+      <div class="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div class="zf-card !p-8 relative">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center">
+              <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-zfprimary">Self-hosted</h3>
+          </div>
+          <div class="text-4xl font-extrabold text-zfprimary mb-1">Grátis</div>
+          <p class="text-sm text-slate-500 mb-6">para sempre, sem limites</p>
+          <ul class="space-y-3 text-sm text-slate-700 mb-7">
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> 1000+ instâncias por servidor</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Webhooks ilimitados</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> S3/R2/MinIO storage</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Drop-in compatible com Z-API</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Suporte da comunidade</li>
+          </ul>
+          <a href="https://github.com/renatokeys/zapfast" class="zf-btn-outline !text-zfprimary !border-slate-300 hover:!bg-slate-100 w-full justify-center">
+            Ver no GitHub
+          </a>
+        </div>
+
+        <div class="zf-card !p-8 relative ring-2 ring-zfaccent-500 bg-gradient-to-br from-white to-emerald-50">
+          <span class="absolute top-4 right-4 zf-tag">em breve</span>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-zfprimary">Managed Cloud</h3>
+          </div>
+          <div class="flex items-baseline gap-1 mb-1">
+            <span class="text-4xl font-extrabold text-zfprimary">R$ 199</span>
+            <span class="text-slate-500">/mês</span>
+          </div>
+          <p class="text-sm text-slate-500 mb-6">por 1000 instâncias · cobra por uso</p>
+          <ul class="space-y-3 text-sm text-slate-700 mb-7">
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Infra gerenciada (GCP/AWS)</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> SLA 99.9%</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Suporte técnico em português</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Backups automáticos</li>
+            <li class="flex gap-2"><svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg> Painel de billing</li>
+          </ul>
+          <a href="#" class="zf-btn-primary w-full justify-center">
+            Entrar na lista de espera
+            <svg width="14" height="12" viewBox="0 0 17 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 6H1.5M10.5 11L15.5 6M10.5 1L15.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEV CENTRAL / STATS -->
+  <section class="py-20 bg-zfprimary text-white relative overflow-hidden">
+    <div class="zf-grid-bg absolute inset-0 opacity-50"></div>
+    <div class="max-w-6xl mx-auto px-6 relative">
+      <div class="text-center max-w-3xl mx-auto mb-12">
+        <p class="zf-section-eyebrow text-emerald-300 mb-3">Para desenvolvedores</p>
+        <h2 class="text-3xl md:text-4xl font-extrabold leading-tight">Conhecimento aberto, suporte da comunidade.</h2>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+        <div class="rounded-xl border border-slate-700 bg-slate-800/40 p-6 text-center">
+          <div class="text-3xl font-extrabold text-emerald-400">100%</div>
+          <p class="text-sm text-slate-300 mt-1">código MIT</p>
+        </div>
+        <div class="rounded-xl border border-slate-700 bg-slate-800/40 p-6 text-center">
+          <div class="text-3xl font-extrabold text-emerald-400">OpenAPI</div>
+          <p class="text-sm text-slate-300 mt-1">specs públicas</p>
+        </div>
+        <div class="rounded-xl border border-slate-700 bg-slate-800/40 p-6 text-center">
+          <div class="text-3xl font-extrabold text-emerald-400">Docker</div>
+          <p class="text-sm text-slate-300 mt-1">deploy 1-line</p>
+        </div>
+        <div class="rounded-xl border border-slate-700 bg-slate-800/40 p-6 text-center">
+          <div class="text-3xl font-extrabold text-emerald-400">24/7</div>
+          <p class="text-sm text-slate-300 mt-1">issues no GitHub</p>
+        </div>
+      </div>
+      <div class="text-center mt-10">
+        <a href="app/docs.html" class="zf-btn-primary">
+          Ver documentação
+          <svg width="14" height="12" viewBox="0 0 17 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 6H1.5M10.5 11L15.5 6M10.5 1L15.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="py-20">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="text-center mb-12">
+        <p class="zf-section-eyebrow mb-3">FAQ</p>
+        <h2 class="text-3xl md:text-4xl font-extrabold text-zfprimary">Perguntas frequentes</h2>
+      </div>
+      <div class="space-y-3">
+        <details class="zf-card !p-0 group">
+          <summary class="flex items-center justify-between p-5 font-semibold text-zfprimary">
+            <span>O zapfast é mesmo gratuito?</span>
+            <svg class="faq-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed">Sim. Self-hosted é 100% grátis sob licença MIT. Você paga apenas a infra onde roda (VPS, GCP, AWS).</div>
+        </details>
+        <details class="zf-card !p-0 group">
+          <summary class="flex items-center justify-between p-5 font-semibold text-zfprimary">
+            <span>Posso migrar minha integração Z-API sem mudar código?</span>
+            <svg class="faq-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed">Sim. Os endpoints REST replicam o contrato da Z-API. Só troque a base URL e o token e pronto.</div>
+        </details>
+        <details class="zf-card !p-0 group">
+          <summary class="flex items-center justify-between p-5 font-semibold text-zfprimary">
+            <span>Funciona com WhatsApp Business?</span>
+            <svg class="faq-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed">Funciona com qualquer número conectado via QR code (WhatsApp pessoal ou Business). Para WhatsApp Cloud API oficial use nosso adapter dedicado (em breve).</div>
+        </details>
+        <details class="zf-card !p-0 group">
+          <summary class="flex items-center justify-between p-5 font-semibold text-zfprimary">
+            <span>Quanta CPU/RAM preciso?</span>
+            <svg class="faq-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed">Numa VPS de 4 vCPU e 8GB RAM você roda confortavelmente 1000+ instâncias simultâneas. Pra 10 instâncias um Raspberry Pi 4 já basta.</div>
+        </details>
+        <details class="zf-card !p-0 group">
+          <summary class="flex items-center justify-between p-5 font-semibold text-zfprimary">
+            <span>Tem risco de banimento no WhatsApp?</span>
+            <svg class="faq-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed">O zapfast usa whatsmeow, a mesma biblioteca de WhatsApp Web. Disparos massivos sem opt-in podem causar banimento — siga sempre as políticas oficiais da Meta.</div>
+        </details>
+        <details class="zf-card !p-0 group">
+          <summary class="flex items-center justify-between p-5 font-semibold text-zfprimary">
+            <span>Posso contribuir com o projeto?</span>
+            <svg class="faq-icon w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="px-5 pb-5 text-sm text-slate-600 leading-relaxed">Por favor! Abra issues, PRs e suba forks à vontade. Licença MIT.</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section class="py-20 zf-hero-bg text-white relative overflow-hidden">
+    <div class="zf-grid-bg absolute inset-0 opacity-50"></div>
+    <div class="max-w-4xl mx-auto px-6 text-center relative">
+      <p class="zf-section-eyebrow text-emerald-300 mb-3">comece em 60 segundos</p>
+      <h2 class="text-3xl md:text-5xl font-extrabold leading-tight mb-6">Pronto pra largar a Z-API?</h2>
+      <p class="text-lg text-slate-300 mb-8">Provisione, conecte um número, dispare a primeira mensagem.</p>
+      <div class="flex flex-wrap justify-center gap-4">
+        <a href="login.html" class="zf-btn-primary">Acessar painel demo</a>
+        <a href="https://github.com/renatokeys/zapfast" target="_blank" class="zf-btn-outline">Ver no GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-zfprimary text-slate-300 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto px-6 py-14 grid md:grid-cols-4 gap-10">
+      <div class="md:col-span-2">
+        <img src="assets/logo-white.svg" alt="zapfast" class="h-9 mb-4" />
+        <p class="text-sm text-slate-400 max-w-sm leading-relaxed">API WhatsApp open-source. Drop-in compatible com Z-API. Fork comunitário sob licença MIT.</p>
+        <div class="flex items-center gap-2 mt-4 text-xs">
+          <span class="dot-live"></span>
+          <a href="https://zapfast.5-161-161-140.nip.io/health" target="_blank" class="text-emerald-400 hover:underline">demo ao vivo</a>
+        </div>
+      </div>
+      <div>
+        <h4 class="text-white font-semibold mb-3 text-sm uppercase tracking-wider">Produto</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="#solucao" class="hover:text-emerald-400">Solução</a></li>
+          <li><a href="#features" class="hover:text-emerald-400">Features</a></li>
+          <li><a href="#planos" class="hover:text-emerald-400">Planos</a></li>
+          <li><a href="login.html" class="hover:text-emerald-400">Painel</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-white font-semibold mb-3 text-sm uppercase tracking-wider">Desenvolvedores</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="app/docs.html" class="hover:text-emerald-400">Documentação</a></li>
+          <li><a href="https://github.com/renatokeys/zapfast" class="hover:text-emerald-400">GitHub</a></li>
+          <li><a href="https://github.com/renatokeys/zapfast/issues" class="hover:text-emerald-400">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="border-t border-slate-800">
+      <div class="max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
+        <p>© 2026 zapfast — fork open-source de <a href="https://github.com/asternic/wuzapi" class="text-emerald-400 hover:underline">wuzapi</a> sob licença MIT.</p>
+        <p>Sem afiliação com Z-API® ou WhatsApp®. Marcas pertencem aos respectivos titulares.</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

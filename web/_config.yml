@@ -1,0 +1,10 @@
+title: zapfast
+description: API WhatsApp open-source, drop-in compatible com Z-API
+url: https://renatokeys.github.io
+baseurl: /zapfast
+theme: null
+plugins: []
+exclude:
+  - scraped/
+  - README.md
+  - "*.sh"

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>zapfast — Instância</title>
+  <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] }, colors: { zfprimary: '#0f172a', zfaccent: { 400: '#34d399', 500: '#10b981', 600: '#059669' } } } } };
+  </script>
+  <link rel="stylesheet" href="../assets/styles.css" />
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="font-sans bg-slate-50">
+
+<div x-data="instancePage()" x-init="init()" class="min-h-screen flex">
+
+  <aside class="w-64 bg-zfprimary text-slate-200 flex flex-col fixed h-screen">
+    <div class="p-6 border-b border-slate-800">
+      <a href="index.html"><img src="../assets/logo-white.svg" alt="zapfast" class="h-8" /></a>
+    </div>
+    <nav class="flex-1 p-3 space-y-1 text-sm">
+      <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/60">← Instâncias</a>
+    </nav>
+  </aside>
+
+  <main class="flex-1 ml-64 p-8 max-w-5xl">
+    <a href="index.html" class="text-sm text-slate-500 hover:text-emerald-600 inline-flex items-center gap-1 mb-3">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      Voltar
+    </a>
+
+    <header class="flex items-start justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-extrabold text-zfprimary" x-text="instance.name || 'Instância'"></h1>
+        <p class="text-sm text-slate-500 mt-1 font-mono" x-text="id"></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="px-3 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-2"
+              :class="connected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'">
+          <span class="dot-live" :class="!connected && 'opacity-40'"></span>
+          <span x-text="connected ? 'conectado' : 'desconectado'"></span>
+        </span>
+      </div>
+    </header>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+
+      <!-- QR CODE COL -->
+      <div class="lg:col-span-2">
+        <div class="zf-card !p-8">
+          <h2 class="font-bold text-zfprimary text-lg mb-2">Conectar WhatsApp</h2>
+          <p class="text-sm text-slate-600 mb-6">No seu celular, abra o WhatsApp → Aparelhos conectados → Conectar aparelho. Aponte para o QR code abaixo.</p>
+
+          <div class="flex flex-col items-center">
+            <div class="w-72 h-72 bg-slate-100 rounded-2xl flex items-center justify-center mb-4 relative overflow-hidden">
+              <template x-if="qr && !connected">
+                <img :src="qr" alt="QR code" class="w-full h-full object-contain p-3" />
+              </template>
+              <template x-if="!qr && !connected">
+                <div class="text-center text-slate-500">
+                  <svg class="w-12 h-12 animate-spin mx-auto mb-2 text-emerald-500" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="50 60"/></svg>
+                  <p class="text-sm">Gerando QR code...</p>
+                </div>
+              </template>
+              <template x-if="connected">
+                <div class="text-center text-emerald-600">
+                  <svg class="w-16 h-16 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  <p class="font-bold">Conectado!</p>
+                </div>
+              </template>
+            </div>
+
+            <div class="flex gap-2">
+              <button @click="loadQR()" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-zfprimary text-sm font-semibold inline-flex items-center gap-2">
+                <svg class="w-4 h-4" :class="loadingQR && 'animate-spin'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Recarregar QR
+              </button>
+              <button @click="disconnect()" x-show="connected" class="px-4 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold">
+                Desconectar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFO COL -->
+      <div class="space-y-5">
+        <div class="zf-card !p-6">
+          <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">ID da instância</p>
+          <p class="font-mono text-sm break-all text-zfprimary" x-text="id"></p>
+        </div>
+        <div class="zf-card !p-6">
+          <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">Token de acesso</p>
+          <div class="flex items-center gap-2">
+            <p class="font-mono text-sm break-all text-zfprimary" x-text="showToken ? (instance.token || 'sem token') : '••••••••••••••••'"></p>
+            <button @click="showToken = !showToken" class="text-slate-400 hover:text-zfprimary shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="zf-card !p-6">
+          <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-2">Webhook</p>
+          <p class="text-sm text-zfprimary break-all" x-text="instance.webhook || '(não configurado)'"></p>
+        </div>
+        <a :href="'send.html?id=' + id" class="zf-btn-primary w-full justify-center">
+          Enviar mensagem teste
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <div x-show="err" x-text="err" class="mt-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"></div>
+
+  </main>
+</div>
+
+<script>
+  function instancePage() {
+    return {
+      endpoint: localStorage.getItem('zf_endpoint') || '',
+      token: localStorage.getItem('zf_token') || '',
+      id: new URLSearchParams(location.search).get('id') || '',
+      instance: {},
+      qr: '',
+      connected: false,
+      loadingQR: false,
+      showToken: false,
+      err: '',
+      pollTimer: null,
+
+      async init() {
+        if (!this.token) return location.href = '../login.html';
+        if (!this.id) return location.href = 'index.html';
+        await this.loadInstance();
+        await this.loadQR();
+        this.pollTimer = setInterval(() => this.checkStatus(), 4000);
+      },
+
+      async loadInstance() {
+        try {
+          const r = await fetch(`${this.endpoint}/admin/users`, { headers: { Authorization: this.token } });
+          const d = await r.json();
+          const found = (d.data || []).find(i => i.id === this.id);
+          if (found) this.instance = found;
+        } catch (e) { this.err = 'Falha ao carregar instância: ' + e.message; }
+      },
+
+      async checkStatus() {
+        const itoken = this.instance.token || this.token;
+        try {
+          const r = await fetch(`${this.endpoint}/session/status`, { headers: { Token: itoken } });
+          if (r.ok) {
+            const d = await r.json();
+            this.connected = !!(d.data && d.data.connected);
+          }
+        } catch (e) {}
+      },
+
+      async loadQR() {
+        this.loadingQR = true;
+        this.err = '';
+        const itoken = this.instance.token || this.token;
+        try {
+          await fetch(`${this.endpoint}/session/connect`, {
+            method: 'POST',
+            headers: { Token: itoken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ Subscribe: ['Message'], Immediate: false }),
+          }).catch(()=>{});
+          const r = await fetch(`${this.endpoint}/session/qr`, { headers: { Token: itoken } });
+          if (!r.ok) throw new Error(`erro ${r.status}`);
+          const d = await r.json();
+          this.qr = (d.data && d.data.QRCode) || d.QRCode || d.qrcode || '';
+          if (!this.qr) this.err = 'QR code não disponível — verifique se a instância foi inicializada';
+        } catch (e) {
+          this.err = 'Falha ao carregar QR: ' + e.message;
+        }
+        this.loadingQR = false;
+      },
+
+      async disconnect() {
+        const itoken = this.instance.token || this.token;
+        try {
+          await fetch(`${this.endpoint}/session/disconnect`, { method: 'POST', headers: { Token: itoken } });
+          this.connected = false;
+          await this.loadQR();
+        } catch (e) { this.err = e.message; }
+      },
+    };
+  }
+</script>
+
+</body>
+</html>

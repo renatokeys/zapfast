@@ -1,0 +1,156 @@
+:root {
+  --zf-primary: #0f172a;
+  --zf-accent: #10b981;
+  --zf-accent-2: #34d399;
+  --zf-accent-dark: #059669;
+  --zf-text: #475569;
+  --zf-muted: #64748b;
+  --zf-bg: #ffffff;
+  --zf-bg-soft: #f8fafc;
+  --zf-border: #e2e8f0;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', 'Roboto', system-ui, -apple-system, sans-serif;
+  color: var(--zf-text);
+  background: var(--zf-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.zf-hero-bg {
+  background:
+    radial-gradient(ellipse at 80% 20%, rgba(16, 185, 129, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(52, 211, 153, 0.12) 0%, transparent 50%),
+    linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+}
+
+.zf-grid-bg {
+  background-image:
+    linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.zf-btn-primary {
+  background: var(--zf-accent);
+  color: #022c22;
+  font-weight: 700;
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.zf-btn-primary:hover {
+  background: var(--zf-accent-2);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px -8px rgba(16, 185, 129, 0.45);
+}
+
+.zf-btn-outline {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.25);
+  font-weight: 600;
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+.zf-btn-outline:hover { border-color: var(--zf-accent); color: var(--zf-accent); }
+
+.zf-card {
+  background: #fff;
+  border: 1px solid var(--zf-border);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  transition: all .2s;
+}
+.zf-card:hover { box-shadow: 0 10px 30px -10px rgba(15,23,42,.1); transform: translateY(-2px); }
+
+.zf-num-badge {
+  display: inline-flex;
+  width: 3rem; height: 3rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--zf-accent), var(--zf-accent-dark));
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.125rem;
+  box-shadow: 0 8px 16px -4px rgba(16,185,129,.4);
+}
+
+.zf-tag {
+  display: inline-block;
+  padding: .25rem .75rem;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, .12);
+  color: var(--zf-accent-dark);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.zf-section-eyebrow {
+  color: var(--zf-accent);
+  font-weight: 700;
+  letter-spacing: .15em;
+  font-size: .8rem;
+  text-transform: uppercase;
+}
+
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] .faq-icon { transform: rotate(180deg); }
+.faq-icon { transition: transform .2s; }
+
+.zf-code {
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: .8rem;
+  border-radius: .75rem;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+}
+.zf-code .k { color: #f472b6; }
+.zf-code .s { color: #fcd34d; }
+.zf-code .c { color: #64748b; font-style: italic; }
+.zf-code .v { color: #34d399; }
+
+.zf-stat-num {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--zf-accent), var(--zf-accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.zf-blink { animation: blink 1.4s infinite; }
+@keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: .3 } }
+
+.dot-live {
+  width: .5rem; height: .5rem; border-radius: 9999px;
+  background: var(--zf-accent);
+  box-shadow: 0 0 0 0 rgba(16,185,129,.6);
+  animation: pulseRing 1.6s infinite;
+}
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(16,185,129,.6); }
+  70% { box-shadow: 0 0 0 12px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+
+.zf-link { color: var(--zf-accent-dark); font-weight: 600; }
+.zf-link:hover { color: var(--zf-accent); text-decoration: underline; }
+
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: var(--zf-border); border-radius: 3px; }
