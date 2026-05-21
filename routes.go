@@ -23,9 +23,6 @@ func (s *server) routes() {
 
 	var routerLog zerolog.Logger
 	logOutput := os.Stdout
-	if s.mode == Stdio {
-		logOutput = os.Stderr
-	}
 	if *logType == "json" {
 		routerLog = zerolog.New(logOutput).
 			With().

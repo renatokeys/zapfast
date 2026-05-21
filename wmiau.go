@@ -184,12 +184,6 @@ func sendEventWithWebHook(mycli *MyClient, postmap map[string]interface{}, path 
 		return
 	}
 
-	// In stdio mode, send as JSON-RPC notification instead of HTTP webhook
-	if mycli.s != nil && mycli.s.mode == Stdio {
-		mycli.s.SendNotification(eventType, postmap)
-		return
-	}
-
 	// Prepare webhook data
 	jsonData, err := json.Marshal(postmap)
 	if err != nil {
@@ -506,8 +500,7 @@ func (s *server) startClient(userID string, textjid string, token string, subscr
 			for evt := range qrChan {
 				if evt.Event == "code" {
 					// Display QR code in terminal (useful for testing/developing)
-					// Skip in stdio mode to avoid breaking JSON-RPC
-					if *logType != "json" && s.mode != Stdio {
+					if *logType != "json" {
 						qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 						fmt.Println("QR code:\n", evt.Code)
 					}
