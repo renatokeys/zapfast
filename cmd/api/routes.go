@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/justinas/alice"
+	"github.com/renatokeys/zapfast/internal/health"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 )
@@ -38,7 +39,7 @@ func (s *server) routes() {
 			Logger()
 	}
 
-	s.router.Handle("/health", s.GetHealth()).Methods("GET")
+	s.router.Handle("/health", health.NewHandler(newHealthService(s.db.DB, clientManager, version))).Methods("GET")
 
 	adminRoutes := s.router.PathPrefix("/admin").Subrouter()
 	adminRoutes.Use(s.authadmin)
