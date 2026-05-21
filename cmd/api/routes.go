@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/justinas/alice"
 	"github.com/renatokeys/zapfast/internal/health"
+	"github.com/renatokeys/zapfast/internal/httpmw"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 )
@@ -38,6 +40,8 @@ func (s *server) routes() {
 			Str("host", *address).
 			Logger()
 	}
+
+	s.router.Use(mux.MiddlewareFunc(httpmw.Recover(routerLog)))
 
 	s.router.Handle("/health", health.NewHandler(newHealthService(s.db.DB, clientManager, version))).Methods("GET")
 
