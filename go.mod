@@ -1,4 +1,4 @@
-module wuzapi
+module github.com/renatokeys/zapfast
 
 go 1.25.0
 
