@@ -59,7 +59,18 @@ test-unit:
 	$(GO) test $(GOFLAGS) -race -count=1 -short ./...
 
 test-integration:
-	$(GO) test $(GOFLAGS) -race -count=1 -tags=integration ./test/integration/...
+	@if find ./test/integration -name '*_test.go' -print -quit 2>/dev/null | grep -q .; then \
+		$(GO) test $(GOFLAGS) -race -count=1 -tags=integration ./test/integration/...; \
+	else \
+		echo "no integration tests yet — skipping"; \
+	fi
+
+test-e2e:
+	@if find ./test/e2e -name '*_test.go' -print -quit 2>/dev/null | grep -q .; then \
+		$(GO) test $(GOFLAGS) -race -count=1 -tags=e2e ./test/e2e/...; \
+	else \
+		echo "no e2e tests yet — skipping"; \
+	fi
 
 lint:
 	golangci-lint run ./...
