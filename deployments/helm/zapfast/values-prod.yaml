@@ -3,46 +3,60 @@
 #   -f helm/zapfast/values.yaml -f helm/zapfast/values-prod.yaml \
 #   --namespace zapfast
 
-replicaCount: 3
+replicaCount: 2
 
 resources:
   requests:
-    cpu: 1000m
-    memory: 2Gi
+    cpu: 500m
+    memory: 1Gi
   limits:
-    cpu: 4000m
-    memory: 8Gi
+    cpu: 2000m
+    memory: 4Gi
 
 autoscaling:
   enabled: true
-  minReplicas: 3
-  maxReplicas: 20
+  minReplicas: 2
+  maxReplicas: 6
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
 podDisruptionBudget:
   enabled: true
-  minAvailable: 2
+  minAvailable: 1
+
+db:
+  existingSecret: zapfast-secret
+
+imagePullSecrets:
+  - name: ghcr-creds
 
 ingress:
-  host: zapfast.hivenzz.com
+  enabled: true
+  className: traefik
+  host: zapfast.5-161-161-140.nip.io
+  tls:
+    enabled: true
+    issuer: letsencrypt-prod
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 
-# In prod, anti-affinity is REQUIRED (not preferred) — never schedule two
-# zapfast pods on the same node.
+# With only 2 nodes in V1, REQUIRED anti-affinity blocks rolling updates
+# (maxSurge=1 has no spare host). Use preferred until cluster has ≥4 nodes,
+# then flip back to requiredDuringSchedulingIgnoredDuringExecution.
 affinity:
   podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: In
-              values:
-                - zapfast
-        topologyKey: kubernetes.io/hostname
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - zapfast
+          topologyKey: kubernetes.io/hostname
 
 # Longer grace period in prod (still V1 — F2 raises this to 1200).
 terminationGracePeriodSeconds: 120
