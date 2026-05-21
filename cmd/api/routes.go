@@ -10,6 +10,7 @@ import (
 	"github.com/justinas/alice"
 	"github.com/renatokeys/zapfast/internal/health"
 	"github.com/renatokeys/zapfast/internal/httpmw"
+	"github.com/renatokeys/zapfast/internal/users"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
 )
@@ -48,8 +49,10 @@ func (s *server) routes() {
 
 	adminRoutes := s.router.PathPrefix("/admin").Subrouter()
 	adminRoutes.Use(s.authadmin)
-	adminRoutes.Handle("/users", s.ListUsers()).Methods("GET")
-	adminRoutes.Handle("/users/{id}", s.ListUsers()).Methods("GET")
+	usersRepo := users.NewPostgresRepository(s.db.DB)
+	usersHandler := users.NewHandler(newUsersService(usersRepo, clientManager))
+	adminRoutes.Handle("/users", usersHandler).Methods("GET")
+	adminRoutes.Handle("/users/{id}", usersHandler).Methods("GET")
 	adminRoutes.Handle("/users", s.AddUser()).Methods("POST")
 	adminRoutes.Handle("/users/{id}", s.EditUser()).Methods("PUT")
 	adminRoutes.Handle("/users/{id}", s.DeleteUser()).Methods("DELETE")
