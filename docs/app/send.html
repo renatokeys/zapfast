@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>zapfast — Enviar mensagem</title>
+  <title>zapfast — Enviar</title>
   <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -12,6 +12,21 @@
   </script>
   <link rel="stylesheet" href="../assets/styles.css" />
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    .field-row { display:grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: start; }
+    .field-row > label { padding-top: 10px; font-size: 13px; font-weight:600; color:#0f172a; }
+    .field-row > .input, .field-row > input, .field-row > textarea, .field-row > select {
+      width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 10px;
+      font-size: 13px; font-family: inherit;
+    }
+    .field-row > textarea { min-height: 70px; resize: vertical; }
+    .btn-add { padding: 6px 10px; font-size: 12px; border: 1px dashed #94a3b8; border-radius: 8px; color:#475569; }
+    .btn-remove { padding: 2px 8px; font-size: 11px; color:#dc2626; border: 1px solid #fca5a5; border-radius: 6px; background:#fef2f2; }
+    .tab { padding: 8px 14px; font-size: 13px; border-radius: 8px; cursor: pointer; user-select: none; }
+    .tab.active { background:#10b981; color:#fff; font-weight:600; }
+    .tab:hover:not(.active) { background:#f1f5f9; }
+    .badge-soon { font-size: 10px; padding: 2px 6px; border-radius: 999px; background:#e0e7ff; color:#4338ca; margin-left:6px; }
+  </style>
 </head>
 <body class="font-sans bg-slate-50">
 
@@ -23,134 +38,471 @@
     </div>
     <nav class="p-3 space-y-1 text-sm">
       <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/60">Instâncias</a>
-      <a href="send.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">Enviar mensagem</a>
+      <a href="send.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-400">Enviar</a>
       <a href="docs.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/60">Documentação</a>
+      <a href="https://github.com/renatokeys/zapfast" target="_blank" class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/60">GitHub</a>
     </nav>
+    <div class="absolute bottom-0 inset-x-0 p-4 border-t border-slate-800">
+      <button @click="logout()" class="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800/60">Sair</button>
+    </div>
   </aside>
 
-  <main class="flex-1 ml-64 p-8 max-w-4xl">
-    <h1 class="text-2xl font-extrabold text-zfprimary mb-1">Enviar mensagem</h1>
-    <p class="text-sm text-slate-600 mb-8">Teste a integração mandando um texto simples via REST.</p>
+  <main class="flex-1 ml-64 p-8 max-w-5xl">
+    <div class="flex items-baseline justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-extrabold text-zfprimary mb-1">Enviar</h1>
+        <p class="text-sm text-slate-600">Todos os tipos suportados — drop-in Z-API.</p>
+      </div>
+      <span class="text-xs text-slate-500" x-text="`endpoint: ${endpoint}`"></span>
+    </div>
 
-    <div class="grid lg:grid-cols-2 gap-6">
-      <form @submit.prevent="send()" class="zf-card !p-7 space-y-4">
+    <!-- Instance selector + destination -->
+    <div class="zf-card !p-5 mb-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-semibold text-zfprimary mb-2">Instância</label>
-          <select x-model="instanceId" required class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
+          <select x-model="instanceId" @change="onInstanceChange()" required class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm">
             <option value="">Selecione...</option>
-            <template x-for="i in instances" :key="i.id">
-              <option :value="i.id" x-text="(i.name || '(sem nome)') + ' — ' + i.id.slice(0,8)"></option>
+            <template x-for="ins in instances" :key="ins.id">
+              <option :value="ins.id" x-text="`${ins.name} ${ins.connected ? '✓ conectada' : '✗ não conectada'}`"></option>
             </template>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-semibold text-zfprimary mb-2">Número destinatário</label>
-          <input x-model="phone" required type="tel" placeholder="5511987654321"
-            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-mono" />
-          <p class="text-xs text-slate-500 mt-1">Inclua código do país (55 = Brasil), sem o +.</p>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-zfprimary mb-2">Mensagem</label>
-          <textarea x-model="message" required rows="5" placeholder="Olá! Esta é uma mensagem teste do zapfast."
-            class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"></textarea>
-        </div>
-
-        <div x-show="result" :class="success ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'" class="p-3 rounded-lg border text-sm font-mono break-all" x-text="result"></div>
-
-        <button type="submit" :disabled="sending" class="zf-btn-primary w-full justify-center !py-3">
-          <span x-text="sending ? 'Enviando...' : 'Enviar mensagem'"></span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
-        </button>
-      </form>
-
-      <div class="space-y-4">
-        <div class="zf-card !p-6 bg-zfprimary !text-slate-200 border-slate-700">
-          <h3 class="text-emerald-400 text-xs uppercase tracking-wider font-bold mb-3">curl equivalente</h3>
-          <pre class="text-xs font-mono leading-relaxed whitespace-pre-wrap break-all" x-text="curlEquivalent()"></pre>
-        </div>
-        <div class="zf-card !p-6">
-          <h3 class="font-bold text-zfprimary mb-3">Dicas</h3>
-          <ul class="text-sm text-slate-600 space-y-2">
-            <li class="flex gap-2">
-              <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
-              A instância precisa estar conectada (QR escaneado).
-            </li>
-            <li class="flex gap-2">
-              <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
-              Use o token da instância no header <code class="font-mono text-xs">Token:</code>.
-            </li>
-            <li class="flex gap-2">
-              <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 10-1.4 1.4l2 2a1 1 0 001.4 0l4-4z"/></svg>
-              Para mídia, JSON aceita <code class="font-mono text-xs">base64</code> ou URL pública.
-            </li>
-          </ul>
+          <label class="block text-sm font-semibold text-zfprimary mb-2">Destino (E.164 ou JID)</label>
+          <input x-model="phone" required type="text" placeholder="5511999999999"
+                 class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm" />
         </div>
       </div>
     </div>
 
+    <!-- Type tabs -->
+    <div class="zf-card !p-5 mb-5 overflow-x-auto">
+      <div class="flex gap-2 min-w-max">
+        <template x-for="t in types" :key="t.id">
+          <div class="tab"
+               :class="{ active: type === t.id, 'opacity-50 cursor-not-allowed': t.soon }"
+               @click="!t.soon && (type = t.id)"
+               x-text="t.label">
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Forms per type -->
+    <form @submit.prevent="send()" class="zf-card !p-7 space-y-5">
+
+      <!-- TEXT -->
+      <template x-if="type === 'text'">
+        <div class="space-y-3">
+          <div class="field-row">
+            <label>Body</label>
+            <textarea x-model="payload.text.Body" required placeholder="Olá!"></textarea>
+          </div>
+          <div class="field-row">
+            <label>Link preview</label>
+            <select x-model.boolean="payload.text.LinkPreview">
+              <option :value="false">não</option>
+              <option :value="true">sim (scan Open Graph)</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label>Reply ID (StanzaID)</label>
+            <input x-model="payload.text.StanzaId" type="text" placeholder="opcional — ID da msg quotada" />
+          </div>
+        </div>
+      </template>
+
+      <!-- IMAGE -->
+      <template x-if="type === 'image'">
+        <div class="space-y-3">
+          <div class="field-row">
+            <label>Image</label>
+            <input x-model="payload.image.Image" required type="text" placeholder="data:image/jpeg;base64,... OU https://..." />
+          </div>
+          <div class="field-row">
+            <label>Caption</label>
+            <textarea x-model="payload.image.Caption" placeholder="opcional"></textarea>
+          </div>
+        </div>
+      </template>
+
+      <!-- AUDIO -->
+      <template x-if="type === 'audio'">
+        <div class="space-y-3">
+          <div class="field-row">
+            <label>Audio</label>
+            <input x-model="payload.audio.Audio" required type="text" placeholder="data:audio/ogg;base64,... OU https://..." />
+          </div>
+          <div class="field-row">
+            <label>PTT (voice)</label>
+            <select x-model.boolean="payload.audio.Ptt">
+              <option :value="true">sim</option>
+              <option :value="false">não</option>
+            </select>
+          </div>
+        </div>
+      </template>
+
+      <!-- VIDEO -->
+      <template x-if="type === 'video'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Video</label><input x-model="payload.video.Video" required type="text" placeholder="data:video/mp4;base64,... OU https://..." /></div>
+          <div class="field-row"><label>Caption</label><textarea x-model="payload.video.Caption" placeholder="opcional"></textarea></div>
+        </div>
+      </template>
+
+      <!-- DOCUMENT -->
+      <template x-if="type === 'document'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Document</label><input x-model="payload.document.Document" required type="text" placeholder="data:application/pdf;base64,... OU https://..." /></div>
+          <div class="field-row"><label>File name</label><input x-model="payload.document.FileName" required type="text" placeholder="contrato.pdf" /></div>
+          <div class="field-row"><label>Mime type</label><input x-model="payload.document.MimeType" type="text" placeholder="application/pdf (auto se vazio)" /></div>
+        </div>
+      </template>
+
+      <!-- STICKER -->
+      <template x-if="type === 'sticker'">
+        <div class="space-y-2">
+          <div class="field-row"><label>Sticker</label><input x-model="payload.sticker.Sticker" required type="text" placeholder="data:image/webp;base64,... (WebP estático ou animado)" /></div>
+        </div>
+      </template>
+
+      <!-- LOCATION -->
+      <template x-if="type === 'location'">
+        <div class="space-y-2">
+          <div class="field-row"><label>Latitude</label><input x-model.number="payload.location.Latitude" required type="number" step="any" placeholder="-23.55052" /></div>
+          <div class="field-row"><label>Longitude</label><input x-model.number="payload.location.Longitude" required type="number" step="any" placeholder="-46.633308" /></div>
+          <div class="field-row"><label>Nome</label><input x-model="payload.location.Name" type="text" placeholder="opcional" /></div>
+        </div>
+      </template>
+
+      <!-- CONTACT -->
+      <template x-if="type === 'contact'">
+        <div class="space-y-2">
+          <div class="field-row"><label>Nome</label><input x-model="payload.contact.Name" required type="text" placeholder="João Silva" /></div>
+          <div class="field-row"><label>Telefone</label><input x-model="payload.contact.Phone" required type="text" placeholder="5511999999999" /></div>
+          <p class="text-xs text-slate-500 mt-1">vCard gerado automaticamente.</p>
+        </div>
+      </template>
+
+      <!-- BUTTONS -->
+      <template x-if="type === 'buttons'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Header (opcional)</label><input x-model="payload.buttons.Title" type="text" placeholder="Título" /></div>
+          <div class="field-row"><label>Body</label><textarea x-model="payload.buttons.Body" required placeholder="Texto do corpo"></textarea></div>
+          <div class="field-row"><label>Footer (opcional)</label><input x-model="payload.buttons.Footer" type="text" placeholder="Rodapé" /></div>
+          <div class="field-row"><label>Image (opcional)</label><input x-model="payload.buttons.Image" type="text" placeholder="data:image/jpeg;base64,... OU URL" /></div>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-semibold text-zfprimary">Botões</label>
+              <button type="button" @click="payload.buttons.Buttons.push({type:'reply', title:'', id:''})" class="btn-add">+ adicionar</button>
+            </div>
+            <template x-for="(b, idx) in payload.buttons.Buttons" :key="idx">
+              <div class="border border-slate-200 rounded-lg p-3 mb-2 space-y-2">
+                <div class="flex justify-between items-start">
+                  <select x-model="b.type" class="text-sm border border-slate-300 rounded-lg px-3 py-1">
+                    <option value="reply">Quick reply</option>
+                    <option value="cta_url">CTA URL</option>
+                    <option value="cta_call">CTA Call</option>
+                    <option value="copy">Copy code</option>
+                  </select>
+                  <button type="button" @click="payload.buttons.Buttons.splice(idx,1)" class="btn-remove">×</button>
+                </div>
+                <input x-model="b.title" type="text" placeholder="Texto do botão" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <template x-if="b.type === 'reply'"><input x-model="b.id" type="text" placeholder="ID do botão" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></template>
+                <template x-if="b.type === 'cta_url'"><input x-model="b.url" type="url" placeholder="https://..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></template>
+                <template x-if="b.type === 'cta_call'"><input x-model="b.phone_number" type="text" placeholder="+5511999999999" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></template>
+                <template x-if="b.type === 'copy'"><input x-model="b.copy_code" type="text" placeholder="ABC123" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></template>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- LIST -->
+      <template x-if="type === 'list'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Top text</label><input x-model="payload.list.TopText" type="text" /></div>
+          <div class="field-row"><label>Description</label><textarea x-model="payload.list.Desc" required></textarea></div>
+          <div class="field-row"><label>Button text</label><input x-model="payload.list.ButtonText" required type="text" placeholder="Ver opções" /></div>
+          <div class="field-row"><label>Footer</label><input x-model="payload.list.FooterText" type="text" /></div>
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-sm font-semibold text-zfprimary">Seções</label>
+              <button type="button" @click="payload.list.Sections.push({title:'', rows:[{title:'', desc:'', RowId:''}]})" class="btn-add">+ seção</button>
+            </div>
+            <template x-for="(sec, sIdx) in payload.list.Sections" :key="sIdx">
+              <div class="border border-slate-200 rounded-lg p-3 mb-2 space-y-2">
+                <div class="flex gap-2">
+                  <input x-model="sec.title" type="text" placeholder="Título da seção" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  <button type="button" @click="payload.list.Sections.splice(sIdx,1)" class="btn-remove">× seção</button>
+                </div>
+                <template x-for="(row, rIdx) in sec.rows" :key="rIdx">
+                  <div class="bg-slate-50 rounded-lg p-2 space-y-1">
+                    <div class="flex gap-2">
+                      <input x-model="row.title" type="text" placeholder="Título da linha" class="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm" />
+                      <button type="button" @click="sec.rows.splice(rIdx,1)" class="btn-remove">×</button>
+                    </div>
+                    <input x-model="row.desc" type="text" placeholder="Descrição (opcional)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm" />
+                    <input x-model="row.RowId" type="text" placeholder="ID" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm" />
+                  </div>
+                </template>
+                <button type="button" @click="sec.rows.push({title:'',desc:'',RowId:''})" class="btn-add">+ linha</button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- POLL -->
+      <template x-if="type === 'poll'">
+        <div class="space-y-3">
+          <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">⚠ Polls funcionam apenas em grupos. Destino deve ser um JID de grupo (ex: 1234@g.us).</p>
+          <div class="field-row"><label>Pergunta</label><input x-model="payload.poll.header" required type="text" placeholder="Qual sua linguagem favorita?" /></div>
+          <div>
+            <label class="text-sm font-semibold text-zfprimary mb-2 block">Opções</label>
+            <template x-for="(opt, idx) in payload.poll.options" :key="idx">
+              <div class="flex gap-2 mb-2">
+                <input x-model="payload.poll.options[idx]" type="text" placeholder="Opção" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <button type="button" @click="payload.poll.options.splice(idx,1)" class="btn-remove">×</button>
+              </div>
+            </template>
+            <button type="button" @click="payload.poll.options.push('')" class="btn-add">+ opção</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- STATUS -->
+      <template x-if="type === 'status'">
+        <div class="space-y-3">
+          <p class="text-xs text-slate-500">Status text broadcast (story de texto).</p>
+          <div class="field-row"><label>Texto</label><textarea x-model="payload.status.Body" required></textarea></div>
+        </div>
+      </template>
+
+      <!-- REACT -->
+      <template x-if="type === 'react'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Message ID</label><input x-model="payload.react.Id" required type="text" placeholder="3EB0..." /></div>
+          <div class="field-row"><label>Emoji</label><input x-model="payload.react.Body" required type="text" placeholder="❤️" maxlength="5" /></div>
+        </div>
+      </template>
+
+      <!-- EDIT -->
+      <template x-if="type === 'edit'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Message ID</label><input x-model="payload.edit.Id" required type="text" /></div>
+          <div class="field-row"><label>Novo texto</label><textarea x-model="payload.edit.Body" required></textarea></div>
+        </div>
+      </template>
+
+      <!-- DELETE / REVOKE -->
+      <template x-if="type === 'delete'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Message ID</label><input x-model="payload.delete.Id" required type="text" placeholder="ID da msg a apagar" /></div>
+        </div>
+      </template>
+
+      <!-- PRESENCE -->
+      <template x-if="type === 'presence'">
+        <div class="space-y-3">
+          <p class="text-xs text-slate-500">Indica que você está "digitando" ou "gravando áudio" no chat.</p>
+          <div class="field-row">
+            <label>Estado</label>
+            <select x-model="payload.presence.State" required>
+              <option value="composing">composing (digitando)</option>
+              <option value="recording">recording (gravando áudio)</option>
+              <option value="paused">paused (pausado)</option>
+            </select>
+          </div>
+        </div>
+      </template>
+
+      <!-- MARK READ -->
+      <template x-if="type === 'markread'">
+        <div class="space-y-3">
+          <div class="field-row"><label>Message IDs</label><input x-model="payload.markread.idsCSV" required type="text" placeholder="ID1,ID2,ID3 (separados por vírgula)" /></div>
+          <div class="field-row"><label>Chat JID</label><input x-model="payload.markread.Chat" required type="text" placeholder="5511...@s.whatsapp.net ou ...@g.us" /></div>
+        </div>
+      </template>
+
+      <hr class="border-slate-200" />
+
+      <div class="flex items-center justify-between">
+        <div class="text-xs text-slate-500" x-text="endpointPath"></div>
+        <button type="submit" :disabled="sending"
+                class="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl disabled:opacity-50">
+          <span x-text="sending ? 'Enviando...' : 'Enviar'"></span>
+        </button>
+      </div>
+
+      <template x-if="result">
+        <div class="mt-3 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap break-all"
+             :class="result.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'"
+             x-text="result.body"></div>
+      </template>
+    </form>
+
+    <!-- Calls / Video — Coming soon (depend on F4/F5) -->
+    <div class="mt-8 zf-card !p-7 border border-dashed border-slate-300 bg-slate-50/50">
+      <h3 class="text-base font-bold text-zfprimary mb-2">Ligações de voz e vídeo <span class="badge-soon">em breve · F4/F5</span></h3>
+      <p class="text-sm text-slate-600 mb-3">A integração com <code class="bg-slate-200 px-1 py-0.5 rounded text-xs">wa-calls-go</code> (voz) e <code class="bg-slate-200 px-1 py-0.5 rounded text-xs">wa-calls-go-video-clean</code> (vídeo + Gemini Live) está no roadmap (Fases 4 e 5). Endpoints planejados:</p>
+      <ul class="text-xs text-slate-600 space-y-1 ml-4 list-disc">
+        <li><code>POST /x/calls/start</code> — iniciar chamada de voz</li>
+        <li><code>POST /x/calls/{id}/accept</code> — atender chamada entrante</li>
+        <li><code>POST /x/calls/{id}/hangup</code> — encerrar chamada</li>
+        <li><code>POST /x/calls/start-video</code> — iniciar chamada de vídeo</li>
+        <li><code>POST /x/calls/{id}/start-vision</code> — iniciar transcrição AI ao vivo (Gemini Live)</li>
+      </ul>
+      <p class="text-sm text-slate-500 mt-3">Hoje só temos <code class="bg-slate-200 px-1 py-0.5 rounded text-xs">POST /call/reject</code> (rejeitar entrante) — herdado do wuzapi.</p>
+    </div>
   </main>
 </div>
 
 <script>
-  function sendPage() {
-    return {
-      endpoint: localStorage.getItem('zf_endpoint') || '',
-      token: localStorage.getItem('zf_token') || '',
-      instances: [],
-      instanceId: new URLSearchParams(location.search).get('id') || '',
-      phone: '',
-      message: '',
-      sending: false,
-      result: '',
-      success: false,
+function sendPage(){
+  return {
+    endpoint: localStorage.getItem('zf_endpoint') || 'https://zapfast.5-161-161-140.nip.io',
+    token: localStorage.getItem('zf_token') || '',
+    instances: [],
+    instanceId: '',
+    instanceToken: '',
+    phone: '',
+    type: 'text',
+    sending: false,
+    result: null,
 
-      async init() {
-        if (!this.token) return location.href = '../login.html';
-        try {
-          const r = await fetch(`${this.endpoint}/admin/users`, { headers: { Authorization: this.token } });
-          const d = await r.json();
-          this.instances = (d.data || []).filter(i => i.id);
-        } catch (e) {}
-      },
+    types: [
+      { id:'text', label:'Texto' },
+      { id:'image', label:'Imagem' },
+      { id:'audio', label:'Áudio' },
+      { id:'video', label:'Vídeo' },
+      { id:'document', label:'Documento' },
+      { id:'sticker', label:'Sticker' },
+      { id:'location', label:'Localização' },
+      { id:'contact', label:'Contato' },
+      { id:'buttons', label:'Botões' },
+      { id:'list', label:'Lista' },
+      { id:'poll', label:'Enquete' },
+      { id:'status', label:'Status (story)' },
+      { id:'react', label:'Reagir' },
+      { id:'edit', label:'Editar' },
+      { id:'delete', label:'Apagar' },
+      { id:'presence', label:'Digitando…' },
+      { id:'markread', label:'Marcar lida' },
+    ],
 
-      curlEquivalent() {
-        const inst = this.instances.find(i => i.id === this.instanceId);
-        const itoken = inst?.token || 'INSTANCE_TOKEN';
-        return `curl -X POST ${this.endpoint}/chat/send/text \\
-  -H "Token: ${itoken}" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "Phone": "${this.phone || '5511987654321'}",
-    "Body": "${(this.message || 'Olá!').replace(/"/g,'\\"')}"
-  }'`;
-      },
+    payload: {
+      text:     { Body:'', LinkPreview:false, StanzaId:'' },
+      image:    { Image:'', Caption:'' },
+      audio:    { Audio:'', Ptt:true },
+      video:    { Video:'', Caption:'' },
+      document: { Document:'', FileName:'', MimeType:'' },
+      sticker:  { Sticker:'' },
+      location: { Latitude:0, Longitude:0, Name:'' },
+      contact:  { Name:'', Phone:'' },
+      buttons:  { Title:'', Body:'', Footer:'', Image:'', Buttons:[{type:'reply', title:'Sim', id:'yes'}] },
+      list:     { TopText:'', Desc:'', ButtonText:'', FooterText:'', Sections:[{title:'Seção 1', rows:[{title:'Opção 1', desc:'', RowId:'opt_1'}]}] },
+      poll:     { header:'', options:['',''] },
+      status:   { Body:'' },
+      react:    { Id:'', Body:'' },
+      edit:     { Id:'', Body:'' },
+      delete:   { Id:'' },
+      presence: { State:'composing' },
+      markread: { idsCSV:'', Chat:'' },
+    },
 
-      async send() {
-        this.sending = true; this.result = ''; this.success = false;
-        const inst = this.instances.find(i => i.id === this.instanceId);
-        const itoken = inst?.token || this.token;
-        try {
-          const r = await fetch(`${this.endpoint}/chat/send/text`, {
-            method: 'POST',
-            headers: { Token: itoken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ Phone: this.phone, Body: this.message }),
-          });
-          const d = await r.json();
-          if (r.ok && d.success !== false) {
-            this.success = true;
-            this.result = '✓ Enviado! ' + JSON.stringify(d.data || d);
-          } else {
-            this.success = false;
-            this.result = '✗ ' + (d.error || `erro ${r.status}`);
-          }
-        } catch (e) {
-          this.success = false;
-          this.result = '✗ ' + e.message;
+    get endpointPath(){
+      return 'POST ' + ({
+        text:'/chat/send/text', image:'/chat/send/image', audio:'/chat/send/audio',
+        video:'/chat/send/video', document:'/chat/send/document', sticker:'/chat/send/sticker',
+        location:'/chat/send/location', contact:'/chat/send/contact',
+        buttons:'/chat/send/buttons', list:'/chat/send/list', poll:'/chat/send/poll',
+        status:'/status/set/text', react:'/chat/react', edit:'/chat/send/edit',
+        delete:'/chat/delete', presence:'/chat/presence', markread:'/chat/markread',
+      }[this.type] || '/chat/send/text');
+    },
+
+    async init(){
+      if (!this.token) { window.location.href = '../login.html'; return; }
+      await this.loadInstances();
+    },
+
+    async loadInstances(){
+      try {
+        const r = await fetch(`${this.endpoint}/admin/users`, { headers: { Authorization: this.token } });
+        const d = await r.json();
+        this.instances = (d.data || []).map(u => ({ id: u.id, name: u.name, token: u.token, connected: u.connected, loggedIn: u.loggedIn }));
+      } catch(e) { console.error(e); }
+    },
+
+    onInstanceChange(){
+      const ins = this.instances.find(i => i.id === this.instanceId);
+      this.instanceToken = ins ? ins.token : '';
+    },
+
+    logout(){
+      localStorage.removeItem('zf_token');
+      window.location.href = '../login.html';
+    },
+
+    buildBody(){
+      const t = this.type;
+      const phoneOnly = this.phone.replace(/[^\d]/g, '');
+      const p = this.payload[t];
+      switch(t) {
+        case 'text': return { Phone: phoneOnly, Body: p.Body, LinkPreview: p.LinkPreview, ContextInfo: p.StanzaId ? { StanzaId: p.StanzaId } : undefined };
+        case 'image': return { Phone: phoneOnly, Image: p.Image, Caption: p.Caption || undefined };
+        case 'audio': return { Phone: phoneOnly, Audio: p.Audio, Ptt: p.Ptt };
+        case 'video': return { Phone: phoneOnly, Video: p.Video, Caption: p.Caption || undefined };
+        case 'document': return { Phone: phoneOnly, Document: p.Document, FileName: p.FileName, MimeType: p.MimeType || undefined };
+        case 'sticker': return { Phone: phoneOnly, Sticker: p.Sticker };
+        case 'location': return { Phone: phoneOnly, Latitude: p.Latitude, Longitude: p.Longitude, Name: p.Name || undefined };
+        case 'contact': {
+          const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${p.Name}\nTEL;TYPE=CELL:${p.Phone}\nEND:VCARD`;
+          return { Phone: phoneOnly, Name: p.Name, Vcard: vcard };
         }
+        case 'buttons': {
+          const obj = { Phone: phoneOnly, Body: p.Body, Buttons: p.Buttons };
+          if (p.Title) obj.Title = p.Title;
+          if (p.Footer) obj.Footer = p.Footer;
+          if (p.Image) obj.Image = p.Image;
+          return obj;
+        }
+        case 'list': return { Phone: phoneOnly, TopText: p.TopText || undefined, Desc: p.Desc, ButtonText: p.ButtonText, FooterText: p.FooterText || undefined, Sections: p.Sections };
+        case 'poll': return { group: phoneOnly.includes('@') ? phoneOnly : phoneOnly + '@g.us', header: p.header, options: p.options.filter(o => o.trim() !== '') };
+        case 'status': return { Body: p.Body };
+        case 'react': return { Phone: phoneOnly, Id: p.Id, Body: p.Body };
+        case 'edit': return { Phone: phoneOnly, Id: p.Id, Body: p.Body };
+        case 'delete': return { Phone: phoneOnly, Id: p.Id };
+        case 'presence': return { Phone: phoneOnly, State: p.State };
+        case 'markread': return { Id: p.idsCSV.split(',').map(s => s.trim()).filter(Boolean), Chat: p.Chat };
+        default: return {};
+      }
+    },
+
+    async send(){
+      this.result = null;
+      this.sending = true;
+      const path = this.endpointPath.replace('POST ', '');
+      const body = this.buildBody();
+      try {
+        const r = await fetch(`${this.endpoint}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', token: this.instanceToken },
+          body: JSON.stringify(body),
+        });
+        const text = await r.text();
+        this.result = { ok: r.ok, body: `HTTP ${r.status}\nrequest: POST ${path}\nbody:\n${JSON.stringify(body, null, 2)}\n\nresponse:\n${text}` };
+      } catch (e) {
+        this.result = { ok: false, body: 'Network error: ' + e.message };
+      } finally {
         this.sending = false;
-      },
-    };
-  }
+      }
+    },
+  };
+}
 </script>
 
 </body>

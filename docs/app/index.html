@@ -246,10 +246,11 @@
         this.createErr = '';
         this.creating = true;
         try {
+          const userToken = (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(16).slice(2) + Date.now().toString(16));
           const r = await fetch(`${this.endpoint}/admin/users`, {
             method: 'POST',
             headers: { Authorization: this.token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: this.newName, webhook: this.newWebhook || undefined }),
+            body: JSON.stringify({ name: this.newName, token: userToken, webhook: this.newWebhook || undefined }),
           });
           const d = await r.json();
           if (!r.ok || d.success === false) throw new Error(d.error || `erro ${r.status}`);
