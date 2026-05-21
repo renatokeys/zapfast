@@ -72,24 +72,6 @@ const (
 	vp8xFlagEXIF byte = 0x08
 )
 
-type WebhookFileErrorPayload struct {
-	URL              string                 `json:"url"`
-	Payload          map[string]interface{} `json:"payload"`
-	UserID           string                 `json:"userID"`
-	EncryptedHmacKey string                 `json:"encryptedHmacKey"`
-	FilePath         string                 `json:"filePath"`
-	AttemptTime      time.Time              `json:"attemptTime"`
-	ErrorMessage     string                 `json:"errorMessage"`
-}
-
-type WebhookErrorPayload struct {
-	URL              string                 `json:"url"`
-	Payload          map[string]interface{} `json:"payload"`
-	UserID           string                 `json:"userID"`
-	EncryptedHmacKey string                 `json:"encryptedHmacKey"`
-	AttemptTime      time.Time              `json:"attemptTime"`
-	ErrorMessage     string                 `json:"errorMessage"`
-}
 type openGraphResult struct {
 	Title       string
 	Description string
@@ -365,29 +347,15 @@ func callHookWithHmac(myurl string, payload map[string]string, userID string, en
 	}
 
 	if lastError != nil {
-		log.Error().Str("url", myurl).Msg("Webhook permanently failed after all retries. Sending to error queue...")
-
-		errorPayloadMap := make(map[string]interface{})
-		if p, ok := body.(map[string]string); ok {
-
-			for k, v := range p {
-				errorPayloadMap[k] = v
-			}
-		} else if p, ok := body.(map[string]interface{}); ok {
-
-			errorPayloadMap = p
-		}
-
-		errorPayload := WebhookErrorPayload{
-			URL:              myurl,
-			Payload:          errorPayloadMap,
-			UserID:           userID,
-			EncryptedHmacKey: hex.EncodeToString(encryptedHmacKey),
-			AttemptTime:      time.Now(),
-			ErrorMessage:     lastError.Error(),
-		}
-
-		PublishDataErrorToQueue(errorPayload)
+		// TODO(F2): persist failure into webhook_delivery_outbox / DLQ table
+		// for later inspection. For now we just log the permanent failure.
+		log.Error().
+			Str("url", myurl).
+			Str("userID", userID).
+			Err(lastError).
+			Msg("Webhook permanently failed after all retries (no DLQ in V0)")
+		_ = body
+		_ = encryptedHmacKey
 	}
 }
 
@@ -485,25 +453,15 @@ func callHookFileWithHmac(myurl string, payload map[string]string, userID string
 	}
 
 	if lastError != nil {
-		log.Error().Str("url", myurl).Msg("File webhook permanently failed after all retries. Sending to error queue...")
-
-		errorPayloadMap := make(map[string]interface{})
-		for k, v := range finalPayload {
-			errorPayloadMap[k] = v
-		}
-
-		errorPayload := WebhookFileErrorPayload{
-			URL:              myurl,
-			Payload:          errorPayloadMap,
-			UserID:           userID,
-			EncryptedHmacKey: hex.EncodeToString(encryptedHmacKey),
-			FilePath:         file,
-			AttemptTime:      time.Now(),
-			ErrorMessage:     lastError.Error(),
-		}
-
-		PublishFileErrorToQueue(errorPayload)
-
+		// TODO(F2): persist failure into webhook_delivery_outbox / DLQ table
+		// for later inspection. For now we just log and return the error.
+		log.Error().
+			Str("url", myurl).
+			Str("userID", userID).
+			Str("file", file).
+			Err(lastError).
+			Msg("File webhook permanently failed after all retries (no DLQ in V0)")
+		_ = encryptedHmacKey
 		return fmt.Errorf("webhook failed permanently: %w", lastError)
 	}
 

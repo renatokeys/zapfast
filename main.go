@@ -58,7 +58,6 @@ var (
 	webhookRetryEnabled      = flag.Bool("webhookretry", true, "Enable webhook retry mechanism")
 	webhookRetryCount        = flag.Int("retrycount", 5, "Number of times to retry failed webhooks")
 	webhookRetryDelaySeconds = flag.Int("retrydelay", 30, "Delay in seconds between webhook retries")
-	webhookErrorQueueName    = flag.String("errorqueue", "webhook_errors", "RabbitMQ queue name for failed webhooks")
 
 	container        *sqlstore.Container
 	clientManager    = NewClientManager()
@@ -200,15 +199,11 @@ func main() {
 			*webhookRetryDelaySeconds = delay
 		}
 	}
-	if v := os.Getenv("WEBHOOK_ERROR_QUEUE_NAME"); v != "" {
-		*webhookErrorQueueName = v
-	}
 
 	log.Info().
 		Bool("enabled", *webhookRetryEnabled).
 		Int("count", *webhookRetryCount).
 		Int("delay", *webhookRetryDelaySeconds).
-		Str("queue", *webhookErrorQueueName).
 		Msg("Webhook Retry Configured")
 
 	// Novo bloco para sobrescrever o osName pelo ENV, se existir
@@ -347,8 +342,6 @@ func main() {
 	} else {
 		log.Info().Msg("Global HMAC key encrypted successfully")
 	}
-
-	InitRabbitMQ()
 
 	ex, err := os.Executable()
 	if err != nil {

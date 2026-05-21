@@ -7247,6 +7247,9 @@ func (s *server) publishSentMessageEvent(token, userID, txtid string, recipient 
 		return
 	}
 
-	// Publish directly to RabbitMQ (bypassing subscription check for sent messages)
-	go sendToGlobalRabbit(jsonData, token, userID)
+	// TODO(F2): publish jsonData to webhook_delivery_outbox table (Postgres outbox)
+	// consumed by cmd/worker for at-least-once webhook delivery.
+	_ = jsonData
+	_ = token
+	_ = userID
 }
