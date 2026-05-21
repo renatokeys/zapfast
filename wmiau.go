@@ -435,7 +435,10 @@ func (s *server) startClient(userID string, textjid string, token string, subscr
 		httpClient.SetDebug(true)
 	}
 	httpClient.SetTimeout(30 * time.Second)
-	httpClient.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
+	httpClient.SetTLSClientConfig(&tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: false,
+	})
 	httpClient.OnError(func(req *resty.Request, err error) {
 		if v, ok := err.(*resty.ResponseError); ok {
 			// v.Response contains the last response from the server
