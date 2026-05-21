@@ -1,53 +1,52 @@
-FROM golang:1.25-bookworm AS builder
+# syntax=docker/dockerfile:1.7
+FROM golang:1.25-alpine AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILDDATE=unknown
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    pkg-config \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache git ca-certificates tzdata
 
-WORKDIR /app
+WORKDIR /src
+
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY . .
-ENV CGO_ENABLED=1
-RUN go build -o wuzapi
 
-FROM debian:bookworm-slim
+ENV CGO_ENABLED=0 GOOS=linux GOFLAGS=-trimpath
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build \
+        -ldflags="-s -w \
+            -X 'main.version=${VERSION}' \
+            -X 'main.commit=${COMMIT}' \
+            -X 'main.buildDate=${BUILDDATE}'" \
+        -o /out/zapfast ./
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    netcat-openbsd \
-    postgresql-client \
-    openssl \
-    curl \
-    ffmpeg \
-    tzdata \
-    && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/static-debian12:nonroot
 
-ENV TZ="America/Sao_Paulo"
-WORKDIR /app
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILDDATE=unknown
 
-COPY --from=builder /app/wuzapi         /app/
-COPY --from=builder /app/static         /app/static/
-COPY --from=builder /app/wuzapi.service /app/wuzapi.service
+LABEL org.opencontainers.image.title="zapfast" \
+      org.opencontainers.image.description="WhatsApp HTTP API forked from wuzapi (MIT)" \
+      org.opencontainers.image.source="https://github.com/renatokeys/zapfast" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.created="${BUILDDATE}"
 
-RUN chmod +x /app/wuzapi && \
-    chmod -R 755 /app && \
-    chown -R root:root /app
+COPY --from=builder /out/zapfast /app/zapfast
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-ENTRYPOINT ["/app/wuzapi", "--logtype=console", "--color=true"]
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/zapfast"]
+CMD ["--address=0.0.0.0", "--port=8080", "--logtype=json"]
