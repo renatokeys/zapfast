@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/renatokeys/zapfast/internal/httpmw"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
@@ -406,9 +407,10 @@ func main() {
 }
 
 func startHTTPMode(s *server) {
+	handler := httpmw.CORS(httpmw.DefaultCORS())(s.router)
 	srv := &http.Server{
 		Addr:              *address + ":" + *port,
-		Handler:           s.router,
+		Handler:           handler,
 		ReadHeaderTimeout: 20 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      120 * time.Second,

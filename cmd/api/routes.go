@@ -42,7 +42,6 @@ func (s *server) routes() {
 	}
 
 	s.router.Use(mux.MiddlewareFunc(httpmw.Recover(routerLog)))
-	s.router.Use(mux.MiddlewareFunc(httpmw.CORS(httpmw.DefaultCORS())))
 	s.router.PathPrefix("/").Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
 
 	s.router.Handle("/health", health.NewHandler(newHealthService(s.db.DB, clientManager, version))).Methods("GET")
