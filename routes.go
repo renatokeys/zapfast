@@ -15,12 +15,6 @@ type Middleware = alice.Constructor
 
 func (s *server) routes() {
 
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	exPath := filepath.Dir(ex)
-
 	var routerLog zerolog.Logger
 	logOutput := os.Stdout
 	if *logType == "json" {
@@ -157,6 +151,4 @@ func (s *server) routes() {
 	s.router.Handle("/group/updateparticipants", c.Then(s.UpdateGroupParticipants())).Methods("POST")
 
 	s.router.Handle("/newsletter/list", c.Then(s.ListNewsletter())).Methods("GET")
-
-	s.router.PathPrefix("/").Handler(http.FileServer(http.Dir(exPath + "/static/")))
 }
