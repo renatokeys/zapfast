@@ -6413,20 +6413,11 @@ func (s *server) GetHistory() http.HandlerFunc {
 
 		// If chat_jid is "index", return mapping of all instances to their chat_jids
 		if chatJID == "index" {
-			var query string
-			if s.db.DriverName() == "postgres" {
-				query = `
-					SELECT user_id, chat_jid, MAX(timestamp) as last_message_time
-					FROM message_history 
-					GROUP BY user_id, chat_jid 
-					ORDER BY user_id, last_message_time DESC`
-			} else { // sqlite
-				query = `
-					SELECT user_id, chat_jid, MAX(timestamp) as last_message_time
-					FROM message_history 
-					GROUP BY user_id, chat_jid 
-					ORDER BY user_id, last_message_time DESC`
-			}
+			query := `
+				SELECT user_id, chat_jid, MAX(timestamp) as last_message_time
+				FROM message_history
+				GROUP BY user_id, chat_jid
+				ORDER BY user_id, last_message_time DESC`
 
 			type ChatMapping struct {
 				UserID          string `json:"user_id" db:"user_id"`
@@ -6487,22 +6478,12 @@ func (s *server) GetHistory() http.HandlerFunc {
 			}
 		}
 
-		var query string
-		if s.db.DriverName() == "postgres" {
-			query = `
-                SELECT id, user_id, chat_jid, sender_jid, message_id, timestamp, message_type, text_content, media_link, COALESCE(quoted_message_id, '') as quoted_message_id, COALESCE(datajson, '') as datajson
-                FROM message_history
-                WHERE user_id = $1 AND chat_jid = $2
-                ORDER BY timestamp DESC
-                LIMIT $3`
-		} else { // sqlite
-			query = `
-                SELECT id, user_id, chat_jid, sender_jid, message_id, timestamp, message_type, text_content, media_link, COALESCE(quoted_message_id, '') as quoted_message_id, COALESCE(datajson, '') as datajson
-                FROM message_history
-                WHERE user_id = ? AND chat_jid = ?
-                ORDER BY timestamp DESC
-                LIMIT ?`
-		}
+		query := `
+            SELECT id, user_id, chat_jid, sender_jid, message_id, timestamp, message_type, text_content, media_link, COALESCE(quoted_message_id, '') as quoted_message_id, COALESCE(datajson, '') as datajson
+            FROM message_history
+            WHERE user_id = $1 AND chat_jid = $2
+            ORDER BY timestamp DESC
+            LIMIT $3`
 
 		var messages []HistoryMessage
 		err := s.db.Select(&messages, query, txtid, chatJID, limit)

@@ -1,6 +1,8 @@
 dbdata/
 files/
 wuzapi
+zapfast
+/bin/
 .env
 .tool-versions
 

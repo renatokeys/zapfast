@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
-	_ "modernc.org/sqlite"
 )
 
 type DatabaseConfig struct {
@@ -24,14 +22,13 @@ type DatabaseConfig struct {
 
 func InitializeDatabase(exPath, dataDirFlag string) (*sqlx.DB, error) {
 	config := getDatabaseConfig(exPath, dataDirFlag)
-
-	if config.Type == "postgres" {
-		return initializePostgres(config)
-	}
-	return initializeSQLite(config)
+	return initializePostgres(config)
 }
 
 func getDatabaseConfig(exPath, dataDirFlag string) DatabaseConfig {
+	_ = exPath
+	_ = dataDirFlag
+
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
@@ -46,31 +43,22 @@ func getDatabaseConfig(exPath, dataDirFlag string) DatabaseConfig {
 		sslMode = "disable"
 	}
 
-	if dbUser != "" && dbPassword != "" && dbName != "" && dbHost != "" && dbPort != "" {
-		return DatabaseConfig{
-			Type:     "postgres",
-			Host:     dbHost,
-			Port:     dbPort,
-			User:     dbUser,
-			Password: dbPassword,
-			Name:     dbName,
-			SSLMode:  sslMode,
-		}
-	}
-
-	// Use datadir flag if provided, otherwise fall back to executable directory
-	dataPath := exPath
-	if dataDirFlag != "" {
-		dataPath = dataDirFlag
-	}
-
 	return DatabaseConfig{
-		Type: "sqlite",
-		Path: filepath.Join(dataPath, "dbdata"),
+		Type:     "postgres",
+		Host:     dbHost,
+		Port:     dbPort,
+		User:     dbUser,
+		Password: dbPassword,
+		Name:     dbName,
+		SSLMode:  sslMode,
 	}
 }
 
 func initializePostgres(config DatabaseConfig) (*sqlx.DB, error) {
+	if config.User == "" || config.Password == "" || config.Name == "" || config.Host == "" || config.Port == "" {
+		return nil, fmt.Errorf("postgres configuration incomplete: set DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT")
+	}
+
 	dsn := fmt.Sprintf(
 		"user=%s password=%s dbname=%s host=%s port=%s sslmode=%s",
 		config.User, config.Password, config.Name, config.Host, config.Port, config.SSLMode,
@@ -83,24 +71,6 @@ func initializePostgres(config DatabaseConfig) (*sqlx.DB, error) {
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping postgres database: %w", err)
-	}
-
-	return db, nil
-}
-
-func initializeSQLite(config DatabaseConfig) (*sqlx.DB, error) {
-	if err := os.MkdirAll(config.Path, 0751); err != nil {
-		return nil, fmt.Errorf("could not create dbdata directory: %w", err)
-	}
-
-	dbPath := filepath.ToSlash(filepath.Join(config.Path, "users.db"))
-	db, err := sqlx.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(10000)")
-	if err != nil {
-		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
-	}
-
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping sqlite database: %w", err)
 	}
 
 	return db, nil
@@ -123,10 +93,6 @@ type HistoryMessage struct {
 func (s *server) saveMessageToHistory(userID, chatJID, senderJID, messageID, messageType, textContent, mediaLink, quotedMessageID, dataJson string) error {
 	query := `INSERT INTO message_history (user_id, chat_jid, sender_jid, message_id, timestamp, message_type, text_content, media_link, quoted_message_id, datajson)
               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
-	if s.db.DriverName() == "sqlite" {
-		query = `INSERT INTO message_history (user_id, chat_jid, sender_jid, message_id, timestamp, message_type, text_content, media_link, quoted_message_id, datajson)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	}
 	_, err := s.db.Exec(query, userID, chatJID, senderJID, messageID, time.Now(), messageType, textContent, mediaLink, quotedMessageID, dataJson)
 	if err != nil {
 		return fmt.Errorf("failed to save message to history: %w", err)
@@ -135,45 +101,23 @@ func (s *server) saveMessageToHistory(userID, chatJID, senderJID, messageID, mes
 }
 
 func (s *server) trimMessageHistory(userID, chatJID string, limit int) error {
-	var queryHistory, querySecrets string
+	queryHistory := `
+        DELETE FROM message_history
+        WHERE id IN (
+            SELECT id FROM message_history
+            WHERE user_id = $1 AND chat_jid = $2
+            ORDER BY timestamp DESC
+            OFFSET $3
+        )`
 
-	if s.db.DriverName() == "postgres" {
-		queryHistory = `
-            DELETE FROM message_history
-            WHERE id IN (
-                SELECT id FROM message_history
-                WHERE user_id = $1 AND chat_jid = $2
-                ORDER BY timestamp DESC
-                OFFSET $3
-            )`
-
-		querySecrets = `
-            DELETE FROM whatsmeow_message_secrets
-            WHERE message_id IN (
-                SELECT message_id FROM message_history
-                WHERE user_id = $1 AND chat_jid = $2
-                ORDER BY timestamp DESC
-                OFFSET $3
-            )`
-	} else { // sqlite
-		queryHistory = `
-            DELETE FROM message_history
-            WHERE id IN (
-                SELECT id FROM message_history
-                WHERE user_id = ? AND chat_jid = ?
-                ORDER BY timestamp DESC
-                LIMIT -1 OFFSET ?
-            )`
-
-		querySecrets = `
-            DELETE FROM whatsmeow_message_secrets
-            WHERE message_id IN (
-                SELECT message_id FROM message_history
-                WHERE user_id = ? AND chat_jid = ?
-                ORDER BY timestamp DESC
-                LIMIT -1 OFFSET ?
-            )`
-	}
+	querySecrets := `
+        DELETE FROM whatsmeow_message_secrets
+        WHERE message_id IN (
+            SELECT message_id FROM message_history
+            WHERE user_id = $1 AND chat_jid = $2
+            ORDER BY timestamp DESC
+            OFFSET $3
+        )`
 
 	if _, err := s.db.Exec(querySecrets, userID, chatJID, limit); err != nil {
 		return fmt.Errorf("failed to trim message secrets: %w", err)
