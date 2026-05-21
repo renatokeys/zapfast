@@ -1,0 +1,168 @@
+# Default values for zapfast.
+# This file is YAML formatted; keys here are the safe defaults for a small/dev
+# cluster. Production overrides live in values-prod.yaml.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/renatokeys/zapfast
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Sized for ~500 WhatsApp instances per pod (V1 target = 1000 across 2 pods).
+# Scale memory up first when sessions go above ~600/pod; CPU is rarely the
+# bottleneck for whatsmeow workloads.
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+# Probes hit GET /health (HTTP 200 = healthy).
+# startupProbe gives the pod up to 60s (30 * 2s) to warm up DB pool +
+# session restore before liveness kicks in.
+probes:
+  liveness:
+    path: /health
+    port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /health
+    port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /health
+    port: http
+    initialDelaySeconds: 0
+    periodSeconds: 2
+    timeoutSeconds: 2
+    failureThreshold: 30
+
+# Env vars split between ConfigMap (non-sensitive) and Secret (sensitive).
+# DB host/port/name go to ConfigMap; user/password go to Secret.
+config:
+  DB_PORT: "5432"
+  DB_NAME: "zapfast"
+  WEBHOOK_FORMAT: "json"
+  WEBHOOK_RETRY_ENABLED: "true"
+  WEBHOOK_RETRY_COUNT: "5"
+  TZ: "America/Sao_Paulo"
+  WUZAPI_PORT: "8080"
+
+# Override DB_HOST when CNPG service name differs (default below points to
+# the cluster created in bootstrap/04-postgres-cluster.yaml).
+db:
+  host: "zapfast-pg-rw.zapfast.svc.cluster.local"
+  user: "zapfast"
+  # IMPORTANT: do NOT commit a real password here. Set via:
+  #   kubectl -n zapfast create secret generic zapfast-db \
+  #     --from-literal=password='...' --from-literal=adminToken='...'
+  # The chart references an existing Secret if existingSecret is set.
+  password: ""
+  existingSecret: ""
+
+# Admin token used by /admin/* endpoints in wuzapi. Generate with `openssl rand -hex 32`.
+adminToken: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  annotations: {}
+
+ingress:
+  enabled: true
+  className: traefik
+  host: zapfast.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  tls:
+    enabled: true
+    secretName: zapfast-tls
+
+# HPA: CPU-based for V1. Custom metrics (sessions/pod, ws_connections) land in F2.
+# When custom metrics come online, replace CPU target with a `pods` metric like
+# `whatsmeow_active_sessions` averaged across pods.
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# PDB: ensure at least 1 pod stays up during voluntary disruptions (node drain,
+# rollout). With replicaCount=2 this allows one pod to be evicted at a time.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# NetworkPolicy: default-deny model.
+# Ingress: only Traefik can talk to us on :8080.
+# Egress: allow DNS + Postgres + general HTTPS (for webhooks).
+networkPolicy:
+  enabled: true
+  traefikNamespace: kube-system
+  postgresNamespace: zapfast
+  allowExternalEgress: true
+
+# Termination tuning.
+# 60s is V1 default (pod gets 60s after SIGTERM to finish in-flight requests).
+# In F2 this jumps to 1200s (20m) once the drain controller deregisters sessions
+# gracefully via the new /admin/drain endpoint.
+terminationGracePeriodSeconds: 60
+
+# preStop: small sleep gives the Service endpoint controller time to remove
+# the pod from rotation before kubelet sends SIGTERM. Cheap V1 drain.
+lifecycle:
+  preStopSleepSeconds: 10
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - zapfast
+          topologyKey: kubernetes.io/hostname
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

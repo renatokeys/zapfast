@@ -1,0 +1,67 @@
+{{- if .Values.networkPolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "zapfast.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zapfast.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "zapfast.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Traefik ingress controller to reach :8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.traefikNamespace }}
+      ports:
+        - port: {{ .Values.config.WUZAPI_PORT }}
+          protocol: TCP
+    # Pod-to-pod within the same namespace (for future sidecars / debug)
+    - from:
+        - podSelector: {}
+      ports:
+        - port: {{ .Values.config.WUZAPI_PORT }}
+          protocol: TCP
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Postgres (CNPG cluster)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.postgresNamespace }}
+      ports:
+        - port: 5432
+          protocol: TCP
+    {{- if .Values.networkPolicy.allowExternalEgress }}
+    # Egress to internet (WhatsApp servers, webhook targets)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+        - port: 5222
+          protocol: TCP
+    {{- end }}
+{{- end }}

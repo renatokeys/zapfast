@@ -1,0 +1,31 @@
+# kube-prometheus-stack installation.
+# Provides: Prometheus, Alertmanager, Grafana, node-exporter, kube-state-metrics.
+# install.sh runs the helm install with a generated password.
+#
+# CHART:    prometheus-community/kube-prometheus-stack
+# VERSION:  62.x (compatible with K3s 1.30+)
+#
+# Install:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   GRAFANA_PASSWORD=$(openssl rand -base64 24)
+#   helm install kube-prom prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring \
+#     --version 62.7.0 \
+#     --set grafana.adminPassword="$GRAFANA_PASSWORD" \
+#     --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
+#     --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+#     --set prometheus.prometheusSpec.retention=15d \
+#     --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=20Gi \
+#     --wait
+#
+# Access Grafana:
+#   kubectl -n monitoring port-forward svc/kube-prom-grafana 3000:80
+#   open http://localhost:3000  (user: admin, pass: $GRAFANA_PASSWORD)
+#
+# Notes:
+# - podMonitor/serviceMonitor selectors disabled so CNPG PodMonitor is auto-discovered.
+# - Retention 15d in V1; bump to 30d when storage budget allows.
+# - Default storageClass picked up automatically (hcloud-volumes on Hetzner).
+# - For external access to Grafana, create an Ingress separately with the
+#   letsencrypt-prod ClusterIssuer once the monitoring host is ready.

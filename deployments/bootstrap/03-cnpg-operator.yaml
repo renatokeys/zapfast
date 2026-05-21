@@ -1,0 +1,18 @@
+# CloudNativePG operator installation.
+# Applied as a single bundled YAML from upstream; install.sh handles it.
+#
+# RELEASE: 1.24 LTS (June 2025 line, supported through Q4 2026)
+# Pinned URL: https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.1.yaml
+#
+# Install:
+#   kubectl apply --server-side -f \
+#     https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.1.yaml
+#
+# Wait until operator is ready:
+#   kubectl -n cnpg-system rollout status deployment cnpg-controller-manager
+#
+# Verify CRDs:
+#   kubectl get crd | grep cnpg.io
+#
+# Upgrade path: bump release URL, rerun apply. CNPG handles rolling
+# Postgres upgrades via Cluster CR; no manual data migration needed.

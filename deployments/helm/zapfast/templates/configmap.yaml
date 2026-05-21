@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "zapfast.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zapfast.labels" . | nindent 4 }}
+data:
+  DB_HOST: {{ .Values.db.host | quote }}
+  DB_PORT: {{ .Values.config.DB_PORT | quote }}
+  DB_NAME: {{ .Values.config.DB_NAME | quote }}
+  WEBHOOK_FORMAT: {{ .Values.config.WEBHOOK_FORMAT | quote }}
+  WEBHOOK_RETRY_ENABLED: {{ .Values.config.WEBHOOK_RETRY_ENABLED | quote }}
+  WEBHOOK_RETRY_COUNT: {{ .Values.config.WEBHOOK_RETRY_COUNT | quote }}
+  TZ: {{ .Values.config.TZ | quote }}
+  WUZAPI_PORT: {{ .Values.config.WUZAPI_PORT | quote }}

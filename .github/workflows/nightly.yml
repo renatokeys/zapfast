@@ -1,0 +1,125 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GO_VERSION: "1.25"
+
+jobs:
+  mutation:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install go-mutesting
+        run: go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
+
+      - name: Run mutation tests
+        id: mutate
+        continue-on-error: true
+        run: |
+          set +e
+          PACKAGES=()
+          if [ -d "./internal/domain" ]; then PACKAGES+=("./internal/domain/..."); fi
+          if [ -d "./internal/app" ]; then PACKAGES+=("./internal/app/..."); fi
+
+          if [ ${#PACKAGES[@]} -eq 0 ]; then
+            echo "::warning::No target packages (./internal/domain, ./internal/app) found yet, skipping"
+            echo "score=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          go-mutesting "${PACKAGES[@]}" | tee mutation-report.txt
+          SCORE=$(grep -oE "Mutation score: [0-9.]+" mutation-report.txt | tail -n1 | awk '{print $3}')
+          SCORE=${SCORE:-0}
+          PERCENT=$(awk -v s="$SCORE" 'BEGIN { printf "%.0f", s * 100 }')
+          echo "score=$PERCENT" >> "$GITHUB_OUTPUT"
+          echo "Mutation score: ${PERCENT}%"
+
+      - name: Alert on low mutation score
+        if: steps.mutate.outputs.score != ''
+        run: |
+          SCORE="${{ steps.mutate.outputs.score }}"
+          THRESHOLD=60
+          if [ "$SCORE" -lt "$THRESHOLD" ]; then
+            echo "::warning::Mutation score ${SCORE}% is below threshold ${THRESHOLD}%"
+          else
+            echo "Mutation score ${SCORE}% is above threshold ${THRESHOLD}%"
+          fi
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report-${{ github.run_id }}
+          path: mutation-report.txt
+          retention-days: 30
+          if-no-files-found: ignore
+
+  full-e2e:
+    name: Full E2E Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: zapfast
+          POSTGRES_PASSWORD: zapfast
+          POSTGRES_DB: zapfast_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://zapfast:zapfast@localhost:5432/zapfast_e2e?sslmode=disable
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run E2E tests
+        run: |
+          if grep -q "^test-e2e:" Makefile 2>/dev/null; then
+            make test-e2e
+          else
+            echo "::warning::No test-e2e target in Makefile yet, running tagged tests"
+            go test -tags=e2e -timeout=25m ./...
+          fi

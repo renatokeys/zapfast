@@ -1,0 +1,139 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: "Image tag to deploy (e.g. v1.2.3 or sha-...)"
+        required: false
+        default: "latest"
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+env:
+  HELM_VERSION: v3.16.3
+  KUBECTL_VERSION: v1.31.0
+
+jobs:
+  deploy:
+    name: Deploy to K3s
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "image_tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_PROD }}
+        run: |
+          if [ -z "$KUBECONFIG_DATA" ]; then
+            echo "::error::KUBECONFIG_PROD secret is empty"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/.kube"
+          echo "$KUBECONFIG_DATA" | base64 --decode > "$RUNNER_TEMP/.kube/config"
+          chmod 600 "$RUNNER_TEMP/.kube/config"
+          echo "KUBECONFIG=$RUNNER_TEMP/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Verify cluster access
+        run: |
+          kubectl config get-contexts
+          kubectl version --output=yaml
+          kubectl get nodes
+
+      - name: Deploy via Helm
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          VALUES_FILE="deployments/helm/zapfast/values-${ENVIRONMENT}.yaml"
+          if [ ! -f "$VALUES_FILE" ]; then
+            echo "::warning::Values file $VALUES_FILE not found, falling back to values-prod.yaml"
+            VALUES_FILE="deployments/helm/zapfast/values-prod.yaml"
+          fi
+
+          helm upgrade --install zapfast deployments/helm/zapfast \
+            --namespace zapfast \
+            --create-namespace \
+            --values "$VALUES_FILE" \
+            --set image.tag="${IMAGE_TAG}" \
+            --atomic \
+            --timeout 5m
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/zapfast -n zapfast --timeout=300s
+
+      - name: Smoke test
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          INGRESS_HOST=$(kubectl get ingress -n zapfast -o jsonpath='{.items[0].spec.rules[0].host}' 2>/dev/null || true)
+          if [ -z "$INGRESS_HOST" ]; then
+            echo "::warning::No ingress host found, skipping HTTP smoke test"
+            kubectl get pods -n zapfast
+            exit 0
+          fi
+
+          echo "Smoke testing https://${INGRESS_HOST}/health"
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "https://${INGRESS_HOST}/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Smoke test passed (HTTP $STATUS)"
+              exit 0
+            fi
+            echo "Attempt $i failed (HTTP $STATUS), retrying in 5s"
+            sleep 5
+          done
+          echo "::error::Smoke test failed after 5 attempts"
+          exit 1
+
+      # - name: Notify Slack
+      #   if: always()
+      #   uses: slackapi/slack-github-action@v1.27.0
+      #   with:
+      #     payload: |
+      #       {
+      #         "text": "zapfast deploy to ${{ github.event.inputs.environment || 'production' }}: ${{ job.status }} (tag: ${{ steps.tag.outputs.image_tag }})"
+      #       }
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
