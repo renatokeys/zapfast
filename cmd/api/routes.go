@@ -53,9 +53,9 @@ func (s *server) routes() {
 	usersHandler := users.NewHandler(newUsersService(usersRepo, clientManager))
 	adminRoutes.Handle("/users", usersHandler).Methods("GET")
 	adminRoutes.Handle("/users/{id}", usersHandler).Methods("GET")
+	adminRoutes.Handle("/users/{id}", usersHandler).Methods("DELETE")
 	adminRoutes.Handle("/users", s.AddUser()).Methods("POST")
 	adminRoutes.Handle("/users/{id}", s.EditUser()).Methods("PUT")
-	adminRoutes.Handle("/users/{id}", s.DeleteUser()).Methods("DELETE")
 	adminRoutes.Handle("/users/{id}/full", s.DeleteUserComplete()).Methods("DELETE")
 
 	c := alice.New()

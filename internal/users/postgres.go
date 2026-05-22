@@ -61,6 +61,22 @@ func (r *PostgresRepository) List(ctx context.Context) ([]User, error) {
 	return out, rows.Err()
 }
 
+// Delete removes a user row by ID. Returns ErrNotFound when no row matched.
+func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
+	res, err := r.db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // Get returns a single user. ErrNotFound is returned for missing rows so
 // callers can map to HTTP 404.
 func (r *PostgresRepository) Get(ctx context.Context, id string) (User, error) {

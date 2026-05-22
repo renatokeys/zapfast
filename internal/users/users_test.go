@@ -12,8 +12,9 @@ import (
 )
 
 type fakeRepo struct {
-	listFn func(context.Context) ([]User, error)
-	getFn  func(context.Context, string) (User, error)
+	listFn   func(context.Context) ([]User, error)
+	getFn    func(context.Context, string) (User, error)
+	deleteFn func(context.Context, string) error
 }
 
 func (f fakeRepo) List(ctx context.Context) ([]User, error) {
@@ -21,6 +22,12 @@ func (f fakeRepo) List(ctx context.Context) ([]User, error) {
 }
 func (f fakeRepo) Get(ctx context.Context, id string) (User, error) {
 	return f.getFn(ctx, id)
+}
+func (f fakeRepo) Delete(ctx context.Context, id string) error {
+	if f.deleteFn == nil {
+		return nil
+	}
+	return f.deleteFn(ctx, id)
 }
 
 type fakeState struct {
@@ -150,8 +157,11 @@ func TestService_Get_OtherError(t *testing.T) {
 
 func newRouterHandler(svc *Service) http.Handler {
 	r := mux.NewRouter()
-	r.Handle("/admin/users", NewHandler(svc)).Methods("GET")
-	r.Handle("/admin/users/{id}", NewHandler(svc)).Methods("GET")
+	h := NewHandler(svc)
+	r.Handle("/admin/users", h).Methods("GET")
+	r.Handle("/admin/users/{id}", h).Methods("GET")
+	r.Handle("/admin/users/{id}", h).Methods("DELETE")
+	r.Handle("/admin/users", h).Methods("DELETE")
 	return r
 }
 
@@ -252,5 +262,81 @@ func TestHandler_Get_OtherError_500(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/users/x", nil))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status: want 500, got %d", rec.Code)
+	}
+}
+
+func TestService_Delete_Success(t *testing.T) {
+	t.Parallel()
+	gotID := ""
+	repo := fakeRepo{deleteFn: func(_ context.Context, id string) error { gotID = id; return nil }}
+	svc := New(repo, &fakeState{})
+	if err := svc.Delete(context.Background(), "abc"); err != nil {
+		t.Errorf("err: %v", err)
+	}
+	if gotID != "abc" {
+		t.Errorf("id passed: %q", gotID)
+	}
+}
+
+func TestService_Delete_Error(t *testing.T) {
+	t.Parallel()
+	want := errors.New("kaboom")
+	repo := fakeRepo{deleteFn: func(context.Context, string) error { return want }}
+	svc := New(repo, &fakeState{})
+	if err := svc.Delete(context.Background(), "x"); !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestHandler_Delete_200(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{deleteFn: func(context.Context, string) error { return nil }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/users/abc", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body: %s", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Code    int             `json:"code"`
+		Success bool            `json:"success"`
+		Data    map[string]string `json:"data"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &env)
+	if !env.Success || env.Data["id"] != "abc" {
+		t.Errorf("envelope: %+v", env)
+	}
+}
+
+func TestHandler_Delete_NotFound_404(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{deleteFn: func(context.Context, string) error { return ErrNotFound }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/users/missing", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+func TestHandler_Delete_OtherError_500(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{deleteFn: func(context.Context, string) error { return errors.New("db") }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/users/x", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+func TestHandler_Delete_MissingID_400(t *testing.T) {
+	t.Parallel()
+	// Direct serve without router so {id} isn't injected
+	h := NewHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/users", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: want 400, got %d", rec.Code)
 	}
 }

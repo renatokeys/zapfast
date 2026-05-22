@@ -70,6 +70,7 @@ var ErrNotFound = errors.New("user not found")
 type Repository interface {
 	List(ctx context.Context) ([]User, error)
 	Get(ctx context.Context, id string) (User, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // ConnectionStateProvider reports the live connection state of an instance.
@@ -116,6 +117,13 @@ func (s *Service) Get(ctx context.Context, id string) (User, error) {
 	return applyLiveState(user, s.state), nil
 }
 
+// Delete removes a user by ID. Returns ErrNotFound when no row matched.
+// Closing the in-process whatsmeow client is a separate concern and not
+// done here — the legacy handler also leaves cleanup to the watchdog.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	return s.repo.Delete(ctx, id)
+}
+
 func applyLiveState(u User, state ConnectionStateProvider) User {
 	u.Connected = state.Connected(u.ID)
 	u.LoggedIn = state.LoggedIn(u.ID)
@@ -134,11 +142,33 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// ServeHTTP dispatches list vs get based on the {id} path variable.
+// ServeHTTP dispatches based on HTTP method + presence of the {id} path
+// variable. Routing:
+//   - GET /admin/users          → list
+//   - GET /admin/users/{id}     → get
+//   - DELETE /admin/users/{id}  → delete
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	vars := mux.Vars(r)
 	id, hasID := vars["id"]
+
+	if r.Method == http.MethodDelete {
+		if !hasID {
+			writeError(w, http.StatusBadRequest, "missing id")
+			return
+		}
+		err := h.svc.Delete(r.Context(), id)
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "database error")
+			return
+		}
+		writeEnvelope(w, http.StatusOK, map[string]string{"id": id})
+		return
+	}
 
 	if hasID {
 		user, err := h.svc.Get(r.Context(), id)

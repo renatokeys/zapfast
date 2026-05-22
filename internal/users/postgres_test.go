@@ -189,6 +189,58 @@ func TestPostgresRepository_Get_ScanError(t *testing.T) {
 	}
 }
 
+func TestPostgresRepository_Delete_Success(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs("abc").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	r := NewPostgresRepository(db)
+	if err := r.Delete(context.Background(), "abc"); err != nil {
+		t.Errorf("err: %v", err)
+	}
+}
+
+func TestPostgresRepository_Delete_NotFound(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs("missing").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	r := NewPostgresRepository(db)
+	if err := r.Delete(context.Background(), "missing"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: want ErrNotFound, got %v", err)
+	}
+}
+
+func TestPostgresRepository_Delete_ExecError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("exec failed")
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).WithArgs("x").WillReturnError(want)
+
+	r := NewPostgresRepository(db)
+	if err := r.Delete(context.Background(), "x"); !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestPostgresRepository_Delete_RowsAffectedError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("rows affected boom")
+	mock.ExpectExec(`DELETE FROM users WHERE id = \$1`).
+		WithArgs("x").
+		WillReturnResult(sqlmock.NewErrorResult(want))
+
+	r := NewPostgresRepository(db)
+	if err := r.Delete(context.Background(), "x"); !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
 type errScanner struct{ err error }
 
 func (e errScanner) Scan(_ ...any) error { return e.err }
