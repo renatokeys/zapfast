@@ -6,15 +6,18 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
 )
 
 type fakeRepo struct {
-	listFn   func(context.Context) ([]User, error)
-	getFn    func(context.Context, string) (User, error)
-	deleteFn func(context.Context, string) error
+	listFn        func(context.Context) ([]User, error)
+	getFn         func(context.Context, string) (User, error)
+	deleteFn      func(context.Context, string) error
+	tokenExistsFn func(context.Context, string) (bool, error)
+	createFn      func(context.Context, CreateRow) error
 }
 
 func (f fakeRepo) List(ctx context.Context) ([]User, error) {
@@ -29,6 +32,32 @@ func (f fakeRepo) Delete(ctx context.Context, id string) error {
 	}
 	return f.deleteFn(ctx, id)
 }
+func (f fakeRepo) TokenExists(ctx context.Context, token string) (bool, error) {
+	if f.tokenExistsFn == nil {
+		return false, nil
+	}
+	return f.tokenExistsFn(ctx, token)
+}
+func (f fakeRepo) Create(ctx context.Context, row CreateRow) error {
+	if f.createFn == nil {
+		return nil
+	}
+	return f.createFn(ctx, row)
+}
+
+type stubIDGen struct {
+	id  string
+	err error
+}
+
+func (s stubIDGen) Generate() (string, error) { return s.id, s.err }
+
+type stubEncryptor struct {
+	out []byte
+	err error
+}
+
+func (s stubEncryptor) Encrypt(_ string) ([]byte, error) { return s.out, s.err }
 
 type fakeState struct {
 	conn   map[string]bool
@@ -162,6 +191,7 @@ func newRouterHandler(svc *Service) http.Handler {
 	r.Handle("/admin/users/{id}", h).Methods("GET")
 	r.Handle("/admin/users/{id}", h).Methods("DELETE")
 	r.Handle("/admin/users", h).Methods("DELETE")
+	r.Handle("/admin/users", h).Methods("POST")
 	return r
 }
 
@@ -338,5 +368,265 @@ func TestHandler_Delete_MissingID_400(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/admin/users", nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status: want 400, got %d", rec.Code)
+	}
+}
+
+func TestValidateEvents(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in      string
+		wantErr error
+	}{
+		{"", nil},
+		{"Message", nil},
+		{"Message,ReadReceipt,All", nil},
+		{"Message, , ReadReceipt", nil},
+		{"Bogus", ErrInvalidEvent},
+		{"Message,Bogus", ErrInvalidEvent},
+	}
+	for _, c := range cases {
+		err := ValidateEvents(c.in)
+		if c.wantErr == nil && err != nil {
+			t.Errorf("%q: unexpected err %v", c.in, err)
+		}
+		if c.wantErr != nil && !errors.Is(err, c.wantErr) {
+			t.Errorf("%q: want %v, got %v", c.in, c.wantErr, err)
+		}
+	}
+}
+
+func TestService_Create_Success(t *testing.T) {
+	t.Parallel()
+	var gotRow CreateRow
+	repo := fakeRepo{
+		tokenExistsFn: func(context.Context, string) (bool, error) { return false, nil },
+		createFn:      func(_ context.Context, r CreateRow) error { gotRow = r; return nil },
+	}
+	svc := New(repo, &fakeState{}, WithIDGenerator(stubIDGen{id: "newid"}))
+
+	in := CreateUserInput{
+		Name:        "Alice",
+		Token:       "tok-1",
+		Webhook:     "https://hook/1",
+		Events:      "Message,ReadReceipt",
+		ProxyConfig: ProxyConfig{Enabled: true, ProxyURL: "socks5://prox:1080"},
+		S3Config:    S3Config{Enabled: true, Bucket: "buck", AccessKey: "SECRETAK", SecretKey: "SECRETSK"},
+	}
+	u, err := svc.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if u.ID != "newid" || u.Name != "Alice" {
+		t.Errorf("returned: %+v", u)
+	}
+	if u.S3Config.AccessKey != "***" || u.S3Config.SecretKey != "" {
+		t.Errorf("S3 secrets leaked in response: %+v", u.S3Config)
+	}
+	if !u.ProxyConfig.Enabled || u.ProxyConfig.ProxyURL != "socks5://prox:1080" {
+		t.Errorf("proxy_config: %+v", u.ProxyConfig)
+	}
+	if gotRow.S3.AccessKey != "SECRETAK" || gotRow.S3.SecretKey != "SECRETSK" {
+		t.Errorf("persisted row should carry raw secrets: %+v", gotRow.S3)
+	}
+	if gotRow.ID != "newid" {
+		t.Errorf("persisted ID: %q", gotRow.ID)
+	}
+}
+
+func TestService_Create_InvalidEvents(t *testing.T) {
+	t.Parallel()
+	svc := New(fakeRepo{}, &fakeState{})
+	_, err := svc.Create(context.Background(), CreateUserInput{Events: "Bogus"})
+	if !errors.Is(err, ErrInvalidEvent) {
+		t.Errorf("err: want ErrInvalidEvent, got %v", err)
+	}
+}
+
+func TestService_Create_HMACTooShort(t *testing.T) {
+	t.Parallel()
+	svc := New(fakeRepo{}, &fakeState{})
+	_, err := svc.Create(context.Background(), CreateUserInput{HMACKey: "tooShort"})
+	if !errors.Is(err, ErrHMACKeyTooShort) {
+		t.Errorf("err: want ErrHMACKeyTooShort, got %v", err)
+	}
+}
+
+func TestService_Create_HMACEncryptError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("crypto down")
+	svc := New(fakeRepo{}, &fakeState{}, WithHMACEncryptor(stubEncryptor{err: want}))
+	_, err := svc.Create(context.Background(), CreateUserInput{HMACKey: "01234567890123456789012345678901xx"})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want wrapping %v, got %v", want, err)
+	}
+}
+
+func TestService_Create_HMACEncrypted(t *testing.T) {
+	t.Parallel()
+	var gotRow CreateRow
+	repo := fakeRepo{createFn: func(_ context.Context, r CreateRow) error { gotRow = r; return nil }}
+	enc := stubEncryptor{out: []byte{0xab, 0xcd}}
+	svc := New(repo, &fakeState{}, WithIDGenerator(stubIDGen{id: "x"}), WithHMACEncryptor(enc))
+	_, err := svc.Create(context.Background(), CreateUserInput{
+		Token:   "t",
+		HMACKey: "01234567890123456789012345678901xx",
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(gotRow.HMACKey) != 2 || gotRow.HMACKey[0] != 0xab {
+		t.Errorf("encrypted hmac bytes not persisted: %x", gotRow.HMACKey)
+	}
+}
+
+func TestService_Create_TokenExists(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{tokenExistsFn: func(context.Context, string) (bool, error) { return true, nil }}
+	svc := New(repo, &fakeState{})
+	_, err := svc.Create(context.Background(), CreateUserInput{Token: "dup"})
+	if !errors.Is(err, ErrTokenExists) {
+		t.Errorf("err: want ErrTokenExists, got %v", err)
+	}
+}
+
+func TestService_Create_TokenExistsError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("db down")
+	repo := fakeRepo{tokenExistsFn: func(context.Context, string) (bool, error) { return false, want }}
+	svc := New(repo, &fakeState{})
+	_, err := svc.Create(context.Background(), CreateUserInput{Token: "x"})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestService_Create_IDGenError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("rand fail")
+	svc := New(fakeRepo{}, &fakeState{}, WithIDGenerator(stubIDGen{err: want}))
+	_, err := svc.Create(context.Background(), CreateUserInput{})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestService_Create_RepoError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("insert fail")
+	repo := fakeRepo{createFn: func(context.Context, CreateRow) error { return want }}
+	svc := New(repo, &fakeState{}, WithIDGenerator(stubIDGen{id: "i"}))
+	_, err := svc.Create(context.Background(), CreateUserInput{})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestDefaultIDGenerator_Hex32(t *testing.T) {
+	t.Parallel()
+	id, err := cryptoRandIDGen{}.Generate()
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(id) != 32 {
+		t.Errorf("len: want 32 hex chars, got %d (%q)", len(id), id)
+	}
+}
+
+type errReader struct{ err error }
+
+func (e errReader) Read(_ []byte) (int, error) { return 0, e.err }
+
+func TestDefaultIDGenerator_ReadError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("entropy starved")
+	_, err := cryptoRandIDGen{r: errReader{err: want}}.Generate()
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestDefaultEncryptor_Disabled(t *testing.T) {
+	t.Parallel()
+	_, err := disabledEncryptor{}.Encrypt("anything")
+	if err == nil {
+		t.Errorf("default encryptor should refuse")
+	}
+}
+
+func TestHandler_Create_201(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{}
+	h := newRouterHandler(New(repo, &fakeState{}, WithIDGenerator(stubIDGen{id: "abc"})))
+	body := `{"name":"Alice","token":"t1","webhook":"https://hook","events":"Message","proxyConfig":{"enabled":true,"proxyURL":"socks5://p:1080"},"s3Config":{"enabled":true,"bucket":"buck","access_key":"AK","secret_key":"SK"}}`
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(body)))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: %d body: %s", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Code    int  `json:"code"`
+		Success bool `json:"success"`
+		Data    User `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Code != 201 || !env.Success {
+		t.Errorf("envelope: %+v", env)
+	}
+	if env.Data.ID != "abc" || env.Data.S3Config.AccessKey != "***" {
+		t.Errorf("data: %+v", env.Data)
+	}
+}
+
+func TestHandler_Create_InvalidJSON_400(t *testing.T) {
+	t.Parallel()
+	h := newRouterHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader("{not json")))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: want 400, got %d", rec.Code)
+	}
+}
+
+func TestHandler_Create_TokenConflict_409(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{tokenExistsFn: func(context.Context, string) (bool, error) { return true, nil }}
+	h := newRouterHandler(New(repo, &fakeState{}, WithIDGenerator(stubIDGen{id: "x"})))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(`{"token":"dup"}`)))
+	if rec.Code != http.StatusConflict {
+		t.Errorf("status: want 409, got %d", rec.Code)
+	}
+}
+
+func TestHandler_Create_InvalidEvents_400(t *testing.T) {
+	t.Parallel()
+	h := newRouterHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(`{"events":"Nope"}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: want 400, got %d", rec.Code)
+	}
+}
+
+func TestHandler_Create_HMACTooShort_400(t *testing.T) {
+	t.Parallel()
+	h := newRouterHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(`{"hmacKey":"short"}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: want 400, got %d", rec.Code)
+	}
+}
+
+func TestHandler_Create_DBError_500(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{createFn: func(context.Context, CreateRow) error { return errors.New("boom") }}
+	h := newRouterHandler(New(repo, &fakeState{}, WithIDGenerator(stubIDGen{id: "x"})))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(`{}`)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status: want 500, got %d", rec.Code)
 	}
 }

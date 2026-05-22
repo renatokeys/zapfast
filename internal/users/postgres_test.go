@@ -280,3 +280,90 @@ func TestScanRow_ProxyConfigDisabledWhenURLEmpty(t *testing.T) {
 		t.Errorf("ProxyConfig.Enabled should be false when proxy_url empty")
 	}
 }
+
+func TestPostgresRepository_TokenExists_True(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users WHERE token = \$1`).
+		WithArgs("tok").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	r := NewPostgresRepository(db)
+	exists, err := r.TokenExists(context.Background(), "tok")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if !exists {
+		t.Errorf("expected true")
+	}
+}
+
+func TestPostgresRepository_TokenExists_False(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users WHERE token = \$1`).
+		WithArgs("tok").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	r := NewPostgresRepository(db)
+	exists, err := r.TokenExists(context.Background(), "tok")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if exists {
+		t.Errorf("expected false")
+	}
+}
+
+func TestPostgresRepository_TokenExists_QueryError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("db down")
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users WHERE token = \$1`).
+		WithArgs("tok").
+		WillReturnError(want)
+	r := NewPostgresRepository(db)
+	_, err := r.TokenExists(context.Background(), "tok")
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestPostgresRepository_Create_Success(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectExec(`INSERT INTO users`).
+		WithArgs(
+			"id1", "Alice", "tok-1", "https://hook/1", 0, "Message",
+			"", "", "socks5://p:1080",
+			true, "https://s3.example", "us-east-1", "buck", "AK", "SK",
+			false, "https://cdn/1", "base64", 30,
+			[]byte{0xab, 0xcd}, 0,
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	r := NewPostgresRepository(db)
+	err := r.Create(context.Background(), CreateRow{
+		ID: "id1", Name: "Alice", Token: "tok-1",
+		Webhook: "https://hook/1", Expiration: 0, Events: "Message",
+		ProxyURL: "socks5://p:1080",
+		S3: S3Config{
+			Enabled: true, Endpoint: "https://s3.example", Region: "us-east-1",
+			Bucket: "buck", AccessKey: "AK", SecretKey: "SK",
+			PathStyle: false, PublicURL: "https://cdn/1", MediaDelivery: "base64", RetentionDays: 30,
+		},
+		HMACKey: []byte{0xab, 0xcd},
+	})
+	if err != nil {
+		t.Errorf("err: %v", err)
+	}
+}
+
+func TestPostgresRepository_Create_ExecError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("constraint violation")
+	mock.ExpectExec(`INSERT INTO users`).WillReturnError(want)
+	r := NewPostgresRepository(db)
+	if err := r.Create(context.Background(), CreateRow{}); !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}

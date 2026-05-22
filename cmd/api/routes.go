@@ -54,7 +54,7 @@ func (s *server) routes() {
 	adminRoutes.Handle("/users", usersHandler).Methods("GET")
 	adminRoutes.Handle("/users/{id}", usersHandler).Methods("GET")
 	adminRoutes.Handle("/users/{id}", usersHandler).Methods("DELETE")
-	adminRoutes.Handle("/users", s.AddUser()).Methods("POST")
+	adminRoutes.Handle("/users", usersHandler).Methods("POST")
 	adminRoutes.Handle("/users/{id}", s.EditUser()).Methods("PUT")
 	adminRoutes.Handle("/users/{id}/full", s.DeleteUserComplete()).Methods("DELETE")
 

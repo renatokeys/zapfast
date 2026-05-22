@@ -42,6 +42,18 @@ SELECT
 FROM users
 `
 
+const insertSQL = `INSERT INTO users (
+  id, name, token, webhook, expiration, events, jid, qrcode, proxy_url,
+  s3_enabled, s3_endpoint, s3_region, s3_bucket, s3_access_key, s3_secret_key,
+  s3_path_style, s3_public_url, media_delivery, s3_retention_days,
+  hmac_key, history
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9,
+  $10, $11, $12, $13, $14, $15,
+  $16, $17, $18, $19,
+  $20, $21
+)`
+
 // List returns all users via a single SELECT.
 func (r *PostgresRepository) List(ctx context.Context) ([]User, error) {
 	rows, err := r.db.QueryContext(ctx, selectColumns)
@@ -94,6 +106,28 @@ func (r *PostgresRepository) Get(ctx context.Context, id string) (User, error) {
 	return scanRow(rows)
 }
 
+// TokenExists returns true when at least one users row has the given token.
+// Used by Service.Create to map duplicates to HTTP 409.
+func (r *PostgresRepository) TokenExists(ctx context.Context, token string) (bool, error) {
+	var n int
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE token = $1", token).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// Create writes a new user row with all proxy, S3 and HMAC columns.
+func (r *PostgresRepository) Create(ctx context.Context, row CreateRow) error {
+	_, err := r.db.ExecContext(ctx, insertSQL,
+		row.ID, row.Name, row.Token, row.Webhook, row.Expiration, row.Events,
+		"", "", row.ProxyURL,
+		row.S3.Enabled, row.S3.Endpoint, row.S3.Region, row.S3.Bucket, row.S3.AccessKey, row.S3.SecretKey,
+		row.S3.PathStyle, row.S3.PublicURL, row.S3.MediaDelivery, row.S3.RetentionDays,
+		row.HMACKey, row.History,
+	)
+	return err
+}
+
 // scanner is the subset of *sql.Rows needed by scanRow — kept as an
 // interface so tests could inject a fake (currently unused; PostgresRepository
 // is covered by integration tests against a real container).
@@ -116,5 +150,4 @@ func scanRow(s scanner) (User, error) {
 	return u, nil
 }
 
-// ensure errors are referenced (compiler check)
 var _ = errors.Is
