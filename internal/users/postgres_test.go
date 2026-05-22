@@ -367,3 +367,99 @@ func TestPostgresRepository_Create_ExecError(t *testing.T) {
 		t.Errorf("err: want %v, got %v", want, err)
 	}
 }
+
+func TestPostgresRepository_ExistsByID_True(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users WHERE id = \$1`).
+		WithArgs("u").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	r := NewPostgresRepository(db)
+	ok, err := r.ExistsByID(context.Background(), "u")
+	if err != nil || !ok {
+		t.Errorf("ok=%v err=%v", ok, err)
+	}
+}
+
+func TestPostgresRepository_ExistsByID_False(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users WHERE id = \$1`).
+		WithArgs("u").WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	r := NewPostgresRepository(db)
+	ok, err := r.ExistsByID(context.Background(), "u")
+	if err != nil || ok {
+		t.Errorf("ok=%v err=%v", ok, err)
+	}
+}
+
+func TestPostgresRepository_ExistsByID_QueryError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("boom")
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users WHERE id = \$1`).WithArgs("u").WillReturnError(want)
+	r := NewPostgresRepository(db)
+	if _, err := r.ExistsByID(context.Background(), "u"); !errors.Is(err, want) {
+		t.Errorf("err: %v", err)
+	}
+}
+
+func TestPostgresRepository_GetToken_Success(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectQuery(`SELECT token FROM users WHERE id = \$1`).
+		WithArgs("u").WillReturnRows(sqlmock.NewRows([]string{"token"}).AddRow("tok-1"))
+	r := NewPostgresRepository(db)
+	tok, err := r.GetToken(context.Background(), "u")
+	if err != nil || tok != "tok-1" {
+		t.Errorf("tok=%q err=%v", tok, err)
+	}
+}
+
+func TestPostgresRepository_GetToken_QueryError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("boom")
+	mock.ExpectQuery(`SELECT token FROM users WHERE id = \$1`).WithArgs("u").WillReturnError(want)
+	r := NewPostgresRepository(db)
+	if _, err := r.GetToken(context.Background(), "u"); !errors.Is(err, want) {
+		t.Errorf("err: %v", err)
+	}
+}
+
+func TestPostgresRepository_Update_Success(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	mock.ExpectExec(`UPDATE users SET name = \$1, webhook = \$2 WHERE id = \$3`).
+		WithArgs("Bob", "https://hk", "u").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	r := NewPostgresRepository(db)
+	err := r.Update(context.Background(), "u", []UpdateField{
+		{Column: "name", Value: "Bob"},
+		{Column: "webhook", Value: "https://hk"},
+	})
+	if err != nil {
+		t.Errorf("err: %v", err)
+	}
+}
+
+func TestPostgresRepository_Update_NoFields(t *testing.T) {
+	t.Parallel()
+	db, _ := newMockDB(t)
+	r := NewPostgresRepository(db)
+	err := r.Update(context.Background(), "u", nil)
+	if err == nil {
+		t.Errorf("expected error for empty fields")
+	}
+}
+
+func TestPostgresRepository_Update_ExecError(t *testing.T) {
+	t.Parallel()
+	db, mock := newMockDB(t)
+	want := errors.New("constraint")
+	mock.ExpectExec(`UPDATE users SET`).WillReturnError(want)
+	r := NewPostgresRepository(db)
+	err := r.Update(context.Background(), "u", []UpdateField{{Column: "name", Value: "x"}})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}

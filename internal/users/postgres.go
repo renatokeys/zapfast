@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strconv"
+	"strings"
 )
 
 // PostgresRepository is the production Repository backed by PostgreSQL.
@@ -114,6 +116,50 @@ func (r *PostgresRepository) TokenExists(ctx context.Context, token string) (boo
 		return false, err
 	}
 	return n > 0, nil
+}
+
+// ExistsByID returns true when at least one users row matches id.
+func (r *PostgresRepository) ExistsByID(ctx context.Context, id string) (bool, error) {
+	var n int
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE id = $1", id).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// GetToken returns just the token column for the given user — used by
+// Service.Update to compute oldToken before the patch is applied.
+func (r *PostgresRepository) GetToken(ctx context.Context, id string) (string, error) {
+	var t string
+	if err := r.db.QueryRowContext(ctx, "SELECT token FROM users WHERE id = $1", id).Scan(&t); err != nil {
+		return "", err
+	}
+	return t, nil
+}
+
+// Update applies the given fields to the user row in column order. The
+// caller (Service.Update) is responsible for ensuring fields is non-empty.
+func (r *PostgresRepository) Update(ctx context.Context, id string, fields []UpdateField) error {
+	if len(fields) == 0 {
+		return errors.New("no fields to update")
+	}
+	var b strings.Builder
+	b.WriteString("UPDATE users SET ")
+	args := make([]any, 0, len(fields)+1)
+	for i, f := range fields {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(f.Column)
+		b.WriteString(" = $")
+		b.WriteString(strconv.Itoa(i + 1))
+		args = append(args, f.Value)
+	}
+	b.WriteString(" WHERE id = $")
+	b.WriteString(strconv.Itoa(len(fields) + 1))
+	args = append(args, id)
+	_, err := r.db.ExecContext(ctx, b.String(), args...)
+	return err
 }
 
 // Create writes a new user row with all proxy, S3 and HMAC columns.

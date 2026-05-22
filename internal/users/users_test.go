@@ -18,6 +18,9 @@ type fakeRepo struct {
 	deleteFn      func(context.Context, string) error
 	tokenExistsFn func(context.Context, string) (bool, error)
 	createFn      func(context.Context, CreateRow) error
+	existsByIDFn  func(context.Context, string) (bool, error)
+	getTokenFn    func(context.Context, string) (string, error)
+	updateFn      func(context.Context, string, []UpdateField) error
 }
 
 func (f fakeRepo) List(ctx context.Context) ([]User, error) {
@@ -43,6 +46,24 @@ func (f fakeRepo) Create(ctx context.Context, row CreateRow) error {
 		return nil
 	}
 	return f.createFn(ctx, row)
+}
+func (f fakeRepo) ExistsByID(ctx context.Context, id string) (bool, error) {
+	if f.existsByIDFn == nil {
+		return true, nil
+	}
+	return f.existsByIDFn(ctx, id)
+}
+func (f fakeRepo) GetToken(ctx context.Context, id string) (string, error) {
+	if f.getTokenFn == nil {
+		return "", nil
+	}
+	return f.getTokenFn(ctx, id)
+}
+func (f fakeRepo) Update(ctx context.Context, id string, fields []UpdateField) error {
+	if f.updateFn == nil {
+		return nil
+	}
+	return f.updateFn(ctx, id, fields)
 }
 
 type stubIDGen struct {
@@ -192,6 +213,8 @@ func newRouterHandler(svc *Service) http.Handler {
 	r.Handle("/admin/users/{id}", h).Methods("DELETE")
 	r.Handle("/admin/users", h).Methods("DELETE")
 	r.Handle("/admin/users", h).Methods("POST")
+	r.Handle("/admin/users/{id}", h).Methods("PUT")
+	r.Handle("/admin/users", h).Methods("PUT")
 	return r
 }
 
@@ -628,5 +651,266 @@ func TestHandler_Create_DBError_500(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/admin/users", strings.NewReader(`{}`)))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("status: want 500, got %d", rec.Code)
+	}
+}
+
+func TestBuildUpdateFields_AllFields(t *testing.T) {
+	t.Parallel()
+	in := UpdateInput{
+		Name: "n", Token: "t", Webhook: "w", Expiration: 5, Events: "Message",
+		History: 7,
+		ProxyConfig: &ProxyConfig{Enabled: true, ProxyURL: "socks5://x"},
+		S3Config:    &S3Config{Enabled: true, Bucket: "b"},
+	}
+	got := buildUpdateFields(in)
+	wantCols := []string{
+		"name", "token", "webhook", "expiration", "events", "history",
+		"proxy_url",
+		"s3_enabled", "s3_endpoint", "s3_region", "s3_bucket",
+		"s3_access_key", "s3_secret_key", "s3_path_style", "s3_public_url",
+		"media_delivery", "s3_retention_days",
+	}
+	if len(got) != len(wantCols) {
+		t.Fatalf("len: want %d, got %d", len(wantCols), len(got))
+	}
+	for i, col := range wantCols {
+		if got[i].Column != col {
+			t.Errorf("[%d]: want %q, got %q", i, col, got[i].Column)
+		}
+	}
+}
+
+func TestBuildUpdateFields_ProxyDisabledClearsURL(t *testing.T) {
+	t.Parallel()
+	in := UpdateInput{ProxyConfig: &ProxyConfig{Enabled: false, ProxyURL: "ignored"}}
+	got := buildUpdateFields(in)
+	if len(got) != 1 || got[0].Column != "proxy_url" || got[0].Value != "" {
+		t.Errorf("expected single proxy_url='': %+v", got)
+	}
+}
+
+func TestBuildUpdateFields_Empty(t *testing.T) {
+	t.Parallel()
+	if got := buildUpdateFields(UpdateInput{}); len(got) != 0 {
+		t.Errorf("empty input should yield 0 fields, got %d", len(got))
+	}
+}
+
+func TestService_Update_Success(t *testing.T) {
+	t.Parallel()
+	var gotID string
+	var gotFields []UpdateField
+	repo := fakeRepo{
+		existsByIDFn: func(context.Context, string) (bool, error) { return true, nil },
+		getTokenFn:   func(context.Context, string) (string, error) { return "old-tok", nil },
+		updateFn: func(_ context.Context, id string, f []UpdateField) error {
+			gotID = id
+			gotFields = f
+			return nil
+		},
+	}
+	hookCalls := 0
+	var lastEv UpdateResult
+	hook := func(_ context.Context, ev UpdateResult) {
+		hookCalls++
+		lastEv = ev
+	}
+	svc := New(repo, &fakeState{}, WithUpdateHook(hook))
+	res, err := svc.Update(context.Background(), "u1", UpdateInput{Name: "Bob", Token: "new-tok"})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if gotID != "u1" || len(gotFields) != 2 {
+		t.Errorf("gotID=%q fields=%+v", gotID, gotFields)
+	}
+	if res.OldToken != "old-tok" || res.NewToken != "new-tok" {
+		t.Errorf("tokens: %+v", res)
+	}
+	if hookCalls != 1 || lastEv.UserID != "u1" {
+		t.Errorf("hook not called once: calls=%d ev=%+v", hookCalls, lastEv)
+	}
+}
+
+func TestService_Update_KeepsOldTokenWhenNotPatched(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{
+		getTokenFn: func(context.Context, string) (string, error) { return "same-tok", nil },
+		updateFn:   func(context.Context, string, []UpdateField) error { return nil },
+	}
+	svc := New(repo, &fakeState{})
+	res, err := svc.Update(context.Background(), "u", UpdateInput{Webhook: "https://x"})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if res.NewToken != "same-tok" {
+		t.Errorf("NewToken should equal OldToken when token not patched: %+v", res)
+	}
+}
+
+func TestService_Update_NotFound(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{existsByIDFn: func(context.Context, string) (bool, error) { return false, nil }}
+	svc := New(repo, &fakeState{})
+	_, err := svc.Update(context.Background(), "x", UpdateInput{Name: "n"})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("err: want ErrNotFound, got %v", err)
+	}
+}
+
+func TestService_Update_ExistsCheckError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("db down")
+	repo := fakeRepo{existsByIDFn: func(context.Context, string) (bool, error) { return false, want }}
+	svc := New(repo, &fakeState{})
+	_, err := svc.Update(context.Background(), "x", UpdateInput{Name: "n"})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestService_Update_InvalidEvents(t *testing.T) {
+	t.Parallel()
+	svc := New(fakeRepo{}, &fakeState{})
+	_, err := svc.Update(context.Background(), "x", UpdateInput{Events: "Bogus"})
+	if !errors.Is(err, ErrInvalidEvent) {
+		t.Errorf("err: want ErrInvalidEvent, got %v", err)
+	}
+}
+
+func TestService_Update_GetTokenError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("net split")
+	repo := fakeRepo{getTokenFn: func(context.Context, string) (string, error) { return "", want }}
+	svc := New(repo, &fakeState{})
+	_, err := svc.Update(context.Background(), "x", UpdateInput{Name: "n"})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestService_Update_NoFields(t *testing.T) {
+	t.Parallel()
+	svc := New(fakeRepo{}, &fakeState{})
+	_, err := svc.Update(context.Background(), "x", UpdateInput{})
+	if !errors.Is(err, ErrNoFields) {
+		t.Errorf("err: want ErrNoFields, got %v", err)
+	}
+}
+
+func TestService_Update_RepoError(t *testing.T) {
+	t.Parallel()
+	want := errors.New("update boom")
+	repo := fakeRepo{updateFn: func(context.Context, string, []UpdateField) error { return want }}
+	svc := New(repo, &fakeState{})
+	_, err := svc.Update(context.Background(), "x", UpdateInput{Name: "n"})
+	if !errors.Is(err, want) {
+		t.Errorf("err: want %v, got %v", want, err)
+	}
+}
+
+func TestHandler_Update_200(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{updateFn: func(context.Context, string, []UpdateField) error { return nil }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/u1", strings.NewReader(`{"name":"Bob"}`)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body: %s", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Code    int    `json:"code"`
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &env)
+	if !env.Success || env.Message == "" {
+		t.Errorf("envelope: %+v", env)
+	}
+}
+
+func TestHandler_Update_S3AndProxy_200(t *testing.T) {
+	t.Parallel()
+	var gotFields []UpdateField
+	repo := fakeRepo{updateFn: func(_ context.Context, _ string, f []UpdateField) error { gotFields = f; return nil }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	body := `{"proxyConfig":{"enabled":true,"proxyURL":"socks5://p"},"s3Config":{"enabled":false,"bucket":"b"}}`
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/u1", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body: %s", rec.Code, rec.Body.String())
+	}
+	hasProxy, hasS3 := false, false
+	for _, f := range gotFields {
+		if f.Column == "proxy_url" {
+			hasProxy = true
+		}
+		if f.Column == "s3_enabled" {
+			hasS3 = true
+		}
+	}
+	if !hasProxy || !hasS3 {
+		t.Errorf("missing fields: proxy=%v s3=%v gotFields=%+v", hasProxy, hasS3, gotFields)
+	}
+}
+
+func TestHandler_Update_MissingID_400(t *testing.T) {
+	t.Parallel()
+	h := NewHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users", strings.NewReader(`{"name":"x"}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: want 400, got %d", rec.Code)
+	}
+}
+
+func TestHandler_Update_InvalidJSON_400(t *testing.T) {
+	t.Parallel()
+	h := newRouterHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/u1", strings.NewReader(`{not json`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: want 400, got %d", rec.Code)
+	}
+}
+
+func TestHandler_Update_NotFound_404(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{existsByIDFn: func(context.Context, string) (bool, error) { return false, nil }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/missing", strings.NewReader(`{"name":"x"}`)))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+func TestHandler_Update_InvalidEvents_400(t *testing.T) {
+	t.Parallel()
+	h := newRouterHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/u1", strings.NewReader(`{"events":"Bogus"}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+func TestHandler_Update_NoFields_400(t *testing.T) {
+	t.Parallel()
+	h := newRouterHandler(New(fakeRepo{}, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/u1", strings.NewReader(`{}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status: %d", rec.Code)
+	}
+}
+
+func TestHandler_Update_DBError_500(t *testing.T) {
+	t.Parallel()
+	repo := fakeRepo{updateFn: func(context.Context, string, []UpdateField) error { return errors.New("boom") }}
+	h := newRouterHandler(New(repo, &fakeState{}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/admin/users/u1", strings.NewReader(`{"name":"x"}`)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("status: %d", rec.Code)
 	}
 }

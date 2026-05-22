@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/renatokeys/zapfast/internal/users"
 )
 
@@ -42,5 +44,40 @@ func newUsersService(repo users.Repository, cm *ClientManager) *users.Service {
 		usersConnState{cm: cm},
 		users.WithIDGenerator(legacyIDGen{}),
 		users.WithHMACEncryptor(legacyHMACEncryptor{}),
+		users.WithUpdateHook(updateHookFor(cm)),
 	)
+}
+
+func updateHookFor(_ *ClientManager) users.UpdateHook {
+	return func(_ context.Context, ev users.UpdateResult) {
+		if userinfocache != nil {
+			userinfocache.Delete(ev.OldToken)
+			if ev.NewToken != "" && ev.NewToken != ev.OldToken {
+				userinfocache.Delete(ev.NewToken)
+			}
+		}
+		if ev.S3Config != nil {
+			s3mgr := GetS3Manager()
+			if s3mgr == nil {
+				return
+			}
+			if ev.S3Config.Enabled {
+				s3Config := &S3Config{
+					Enabled:       ev.S3Config.Enabled,
+					Endpoint:      ev.S3Config.Endpoint,
+					Region:        ev.S3Config.Region,
+					Bucket:        ev.S3Config.Bucket,
+					AccessKey:     ev.S3Config.AccessKey,
+					SecretKey:     ev.S3Config.SecretKey,
+					PathStyle:     ev.S3Config.PathStyle,
+					PublicURL:     ev.S3Config.PublicURL,
+					MediaDelivery: ev.S3Config.MediaDelivery,
+					RetentionDays: ev.S3Config.RetentionDays,
+				}
+				_ = s3mgr.InitializeS3Client(ev.UserID, s3Config)
+			} else {
+				s3mgr.RemoveClient(ev.UserID)
+			}
+		}
+	}
 }

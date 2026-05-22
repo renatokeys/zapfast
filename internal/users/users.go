@@ -98,7 +98,39 @@ var (
 	ErrTokenExists     = errors.New("user with this token already exists")
 	ErrInvalidEvent    = errors.New("invalid event type")
 	ErrHMACKeyTooShort = errors.New("hmac key must be at least 32 characters long")
+	ErrNoFields        = errors.New("no fields to update")
 )
+
+// UpdateInput is the patch shape for Service.Update. Zero values mean
+// "do not change" — this matches legacy EditUser semantics so consumers
+// can omit unchanged fields. ProxyConfig/S3Config use nil pointers to
+// signal "not in patch" (otherwise Enabled=false would be indistinguishable
+// from "absent").
+type UpdateInput struct {
+	Name        string
+	Token       string
+	Webhook     string
+	Expiration  int
+	Events      string
+	History     int
+	ProxyConfig *ProxyConfig
+	S3Config    *S3Config
+}
+
+// UpdateResult is returned by Service.Update and passed to UpdateHook.
+// OldToken/NewToken let the adapter invalidate the in-memory userinfo
+// cache for both the previous and the new token.
+type UpdateResult struct {
+	UserID   string
+	OldToken string
+	NewToken string
+	S3Config *S3Config
+}
+
+// UpdateHook is invoked after a successful Update. Adapters use it for
+// side-effects (cache invalidation, S3 client init/remove) that the
+// domain shouldn't know about.
+type UpdateHook func(ctx context.Context, ev UpdateResult)
 
 // Repository persists user metadata. The Postgres implementation in this
 // package issues a single SELECT pulling all S3 fields too, fixing the
@@ -109,6 +141,16 @@ type Repository interface {
 	Delete(ctx context.Context, id string) error
 	TokenExists(ctx context.Context, token string) (bool, error)
 	Create(ctx context.Context, row CreateRow) error
+	ExistsByID(ctx context.Context, id string) (bool, error)
+	GetToken(ctx context.Context, id string) (string, error)
+	Update(ctx context.Context, id string, fields []UpdateField) error
+}
+
+// UpdateField is a single column-value pair used by Repository.Update.
+// Driven by Service.Update which builds the slice in column order.
+type UpdateField struct {
+	Column string
+	Value  any
 }
 
 // ConnectionStateProvider reports the live connection state of an instance.
@@ -152,10 +194,11 @@ func (disabledEncryptor) Encrypt(_ string) ([]byte, error) {
 // Service composes Repository + ConnectionStateProvider + helpers into the
 // response expected by the HTTP handler.
 type Service struct {
-	repo   Repository
-	state  ConnectionStateProvider
-	ids    IDGenerator
-	crypto HMACEncryptor
+	repo       Repository
+	state      ConnectionStateProvider
+	ids        IDGenerator
+	crypto     HMACEncryptor
+	updateHook UpdateHook
 }
 
 // Option mutates a Service at construction.
@@ -166,6 +209,10 @@ func WithIDGenerator(g IDGenerator) Option { return func(s *Service) { s.ids = g
 
 // WithHMACEncryptor overrides the default (disabled) HMAC encryptor.
 func WithHMACEncryptor(e HMACEncryptor) Option { return func(s *Service) { s.crypto = e } }
+
+// WithUpdateHook registers a callback invoked after Service.Update. Used
+// by the adapter to invalidate the userinfo cache and re-init S3 clients.
+func WithUpdateHook(h UpdateHook) Option { return func(s *Service) { s.updateHook = h } }
 
 // New returns a Service. Both arguments must be non-nil; constructor does
 // not panic but the resulting service will nil-dereference in production
@@ -271,6 +318,97 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (User, error) 
 	return created, nil
 }
 
+// Update applies a partial patch to an existing user. Zero values on the
+// string/int fields mean "don't change"; ProxyConfig/S3Config use nil
+// pointers for the same purpose.
+//
+// Returns ErrNotFound if the user doesn't exist, ErrNoFields if the patch
+// is empty, or ErrInvalidEvent for malformed Events.
+func (s *Service) Update(ctx context.Context, id string, in UpdateInput) (UpdateResult, error) {
+	exists, err := s.repo.ExistsByID(ctx, id)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	if !exists {
+		return UpdateResult{}, ErrNotFound
+	}
+	if in.Events != "" {
+		if err := ValidateEvents(in.Events); err != nil {
+			return UpdateResult{}, err
+		}
+	}
+	oldToken, err := s.repo.GetToken(ctx, id)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	fields := buildUpdateFields(in)
+	if len(fields) == 0 {
+		return UpdateResult{}, ErrNoFields
+	}
+	if err := s.repo.Update(ctx, id, fields); err != nil {
+		return UpdateResult{}, err
+	}
+	newToken := oldToken
+	if in.Token != "" {
+		newToken = in.Token
+	}
+	result := UpdateResult{
+		UserID:   id,
+		OldToken: oldToken,
+		NewToken: newToken,
+		S3Config: in.S3Config,
+	}
+	if s.updateHook != nil {
+		s.updateHook(ctx, result)
+	}
+	return result, nil
+}
+
+func buildUpdateFields(in UpdateInput) []UpdateField {
+	var f []UpdateField
+	if in.Name != "" {
+		f = append(f, UpdateField{Column: "name", Value: in.Name})
+	}
+	if in.Token != "" {
+		f = append(f, UpdateField{Column: "token", Value: in.Token})
+	}
+	if in.Webhook != "" {
+		f = append(f, UpdateField{Column: "webhook", Value: in.Webhook})
+	}
+	if in.Expiration != 0 {
+		f = append(f, UpdateField{Column: "expiration", Value: in.Expiration})
+	}
+	if in.Events != "" {
+		f = append(f, UpdateField{Column: "events", Value: in.Events})
+	}
+	if in.History != 0 {
+		f = append(f, UpdateField{Column: "history", Value: in.History})
+	}
+	if in.ProxyConfig != nil {
+		url := ""
+		if in.ProxyConfig.Enabled {
+			url = in.ProxyConfig.ProxyURL
+		}
+		f = append(f, UpdateField{Column: "proxy_url", Value: url})
+	}
+	if in.S3Config != nil {
+		s3 := in.S3Config
+		f = append(f,
+			UpdateField{Column: "s3_enabled", Value: s3.Enabled},
+			UpdateField{Column: "s3_endpoint", Value: s3.Endpoint},
+			UpdateField{Column: "s3_region", Value: s3.Region},
+			UpdateField{Column: "s3_bucket", Value: s3.Bucket},
+			UpdateField{Column: "s3_access_key", Value: s3.AccessKey},
+			UpdateField{Column: "s3_secret_key", Value: s3.SecretKey},
+			UpdateField{Column: "s3_path_style", Value: s3.PathStyle},
+			UpdateField{Column: "s3_public_url", Value: s3.PublicURL},
+			UpdateField{Column: "media_delivery", Value: s3.MediaDelivery},
+			UpdateField{Column: "s3_retention_days", Value: s3.RetentionDays},
+		)
+	}
+	return f
+}
+
 func applyLiveState(u User, state ConnectionStateProvider) User {
 	u.Connected = state.Connected(u.ID)
 	u.LoggedIn = state.LoggedIn(u.ID)
@@ -296,6 +434,7 @@ func NewHandler(svc *Service) *Handler {
 //   - GET    /admin/users          → list
 //   - POST   /admin/users          → create
 //   - GET    /admin/users/{id}     → get
+//   - PUT    /admin/users/{id}     → update
 //   - DELETE /admin/users/{id}     → delete
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -305,6 +444,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		h.handleCreate(w, r)
+		return
+	case http.MethodPut:
+		h.handleUpdate(w, r, id, hasID)
 		return
 	case http.MethodDelete:
 		h.handleDelete(w, r, id, hasID)
@@ -380,6 +522,81 @@ type createS3Config struct {
 	PublicURL     string `json:"public_url"`
 	MediaDelivery string `json:"media_delivery"`
 	RetentionDays int    `json:"retention_days"`
+}
+
+// updatePayload is the wire shape for PUT /admin/users/{id}. Mirrors the
+// legacy EditUser request shape (camelCase keys) verbatim.
+type updatePayload struct {
+	Name        string             `json:"name,omitempty"`
+	Token       string             `json:"token,omitempty"`
+	Webhook     string             `json:"webhook,omitempty"`
+	Expiration  int                `json:"expiration,omitempty"`
+	Events      string             `json:"events,omitempty"`
+	History     int                `json:"history,omitempty"`
+	ProxyConfig *createProxyConfig `json:"proxyConfig,omitempty"`
+	S3Config    *createS3Config    `json:"s3Config,omitempty"`
+}
+
+func (h *Handler) handleUpdate(w http.ResponseWriter, r *http.Request, id string, hasID bool) {
+	if !hasID {
+		writeError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	var p updatePayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+	in := UpdateInput{
+		Name:       p.Name,
+		Token:      p.Token,
+		Webhook:    p.Webhook,
+		Expiration: p.Expiration,
+		Events:     p.Events,
+		History:    p.History,
+	}
+	if p.ProxyConfig != nil {
+		in.ProxyConfig = &ProxyConfig{Enabled: p.ProxyConfig.Enabled, ProxyURL: p.ProxyConfig.ProxyURL}
+	}
+	if p.S3Config != nil {
+		in.S3Config = &S3Config{
+			Enabled:       p.S3Config.Enabled,
+			Endpoint:      p.S3Config.Endpoint,
+			Region:        p.S3Config.Region,
+			Bucket:        p.S3Config.Bucket,
+			AccessKey:     p.S3Config.AccessKey,
+			SecretKey:     p.S3Config.SecretKey,
+			PathStyle:     p.S3Config.PathStyle,
+			PublicURL:     p.S3Config.PublicURL,
+			MediaDelivery: p.S3Config.MediaDelivery,
+			RetentionDays: p.S3Config.RetentionDays,
+		}
+	}
+	_, err := h.svc.Update(r.Context(), id, in)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	case errors.Is(err, ErrInvalidEvent):
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	case errors.Is(err, ErrNoFields):
+		writeError(w, http.StatusBadRequest, "no fields to update")
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	writeEnvelopeWithMessage(w, http.StatusOK, "user updated successfully")
+}
+
+func writeEnvelopeWithMessage(w http.ResponseWriter, code int, msg string) {
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    code,
+		"success": true,
+		"message": msg,
+	})
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
