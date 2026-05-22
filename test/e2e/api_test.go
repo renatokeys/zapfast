@@ -299,6 +299,100 @@ func TestResponseEnvelope(t *testing.T) {
 	}
 }
 
+func TestUserUpdate(t *testing.T) {
+	t.Parallel()
+	c := newClient(t)
+
+	name := "e2e-upd-" + randomHex(t, 6)
+	userToken := randomHex(t, 16)
+
+	status, body := c.admin(t, http.MethodPost, "/admin/users", map[string]string{
+		"name":  name,
+		"token": userToken,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create: %d %s", status, body)
+	}
+	var created struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(body, &created)
+	id := created.Data.ID
+	t.Cleanup(func() { _, _ = c.admin(t, http.MethodDelete, "/admin/users/"+id, nil) })
+
+	newName := name + "-renamed"
+	status, body = c.admin(t, http.MethodPut, "/admin/users/"+id, map[string]any{
+		"name": newName,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("update: want 200, got %d: %s", status, body)
+	}
+	var upd struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	_ = json.Unmarshal(body, &upd)
+	if !upd.Success || upd.Message == "" {
+		t.Errorf("update envelope: %+v", upd)
+	}
+
+	status, body = c.admin(t, http.MethodGet, "/admin/users/"+id, nil)
+	if status != http.StatusOK {
+		t.Fatalf("get after update: %d %s", status, body)
+	}
+	var got struct {
+		Data struct {
+			Name string `json:"name"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(body, &got)
+	if got.Data.Name != newName {
+		t.Errorf("name not updated: want %q, got %q", newName, got.Data.Name)
+	}
+}
+
+func TestUserUpdate_NotFound(t *testing.T) {
+	t.Parallel()
+	c := newClient(t)
+
+	status, _ := c.admin(t, http.MethodPut, "/admin/users/does-not-exist-"+randomHex(t, 4),
+		map[string]any{"name": "x"})
+	if status != http.StatusNotFound {
+		t.Errorf("PUT unknown id: want 404, got %d", status)
+	}
+}
+
+func TestUserUpdate_NoFields(t *testing.T) {
+	t.Parallel()
+	c := newClient(t)
+
+	name := "e2e-nf-" + randomHex(t, 6)
+	userToken := randomHex(t, 16)
+
+	status, body := c.admin(t, http.MethodPost, "/admin/users", map[string]string{
+		"name":  name,
+		"token": userToken,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create: %d %s", status, body)
+	}
+	var created struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(body, &created)
+	id := created.Data.ID
+	t.Cleanup(func() { _, _ = c.admin(t, http.MethodDelete, "/admin/users/"+id, nil) })
+
+	status, _ = c.admin(t, http.MethodPut, "/admin/users/"+id, map[string]any{})
+	if status != http.StatusBadRequest {
+		t.Errorf("empty patch: want 400, got %d", status)
+	}
+}
+
 func TestConcurrentAdminReads(t *testing.T) {
 	t.Parallel()
 	c := newClient(t)
