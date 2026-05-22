@@ -344,18 +344,17 @@
       </template>
     </form>
 
-    <!-- Calls / Video — Coming soon (depend on F4/F5) -->
-    <div class="mt-8 zf-card !p-7 border border-dashed border-slate-300 bg-slate-50/50">
-      <h3 class="text-base font-bold text-zfprimary mb-2">Ligações de voz e vídeo <span class="badge-soon">em breve · F4/F5</span></h3>
-      <p class="text-sm text-slate-600 mb-3">A integração com <code class="bg-slate-200 px-1 py-0.5 rounded text-xs">wa-calls-go</code> (voz) e <code class="bg-slate-200 px-1 py-0.5 rounded text-xs">wa-calls-go-video-clean</code> (vídeo + Gemini Live) está no roadmap (Fases 4 e 5). Endpoints planejados:</p>
-      <ul class="text-xs text-slate-600 space-y-1 ml-4 list-disc">
-        <li><code>POST /x/calls/start</code> — iniciar chamada de voz</li>
-        <li><code>POST /x/calls/{id}/accept</code> — atender chamada entrante</li>
-        <li><code>POST /x/calls/{id}/hangup</code> — encerrar chamada</li>
-        <li><code>POST /x/calls/start-video</code> — iniciar chamada de vídeo</li>
-        <li><code>POST /x/calls/{id}/start-vision</code> — iniciar transcrição AI ao vivo (Gemini Live)</li>
+    <!-- Calls / Video — limitação do protocolo WhatsApp -->
+    <div class="mt-8 zf-card !p-7 border border-dashed border-amber-300 bg-amber-50/60">
+      <h3 class="text-base font-bold text-amber-900 mb-2">Ligações de voz e vídeo <span class="badge-soon">limitação do WhatsApp</span></h3>
+      <p class="text-sm text-amber-900 mb-3">A iniciação de chamadas (voz ou vídeo) <strong>não é suportada</strong> pela biblioteca whatsmeow, que é a base do zapfast (e da Z-API). Essa é uma restrição do próprio protocolo Multi-Device do WhatsApp — clientes terceiros não podem originar chamadas, apenas o app oficial. A única forma oficial de iniciar chamadas é via WhatsApp Business Cloud API da Meta, que tem custo por mensagem e exige template aprovado.</p>
+      <ul class="text-xs text-amber-900 space-y-1 ml-4 list-disc">
+        <li>✅ Receber notificação de chamada entrante (evento <code class="bg-amber-100 px-1 py-0.5 rounded text-xs">CallOffer</code>)</li>
+        <li>✅ Rejeitar chamada entrante — <code class="bg-amber-100 px-1 py-0.5 rounded text-xs">POST /call/reject</code></li>
+        <li>❌ Iniciar chamada de voz — não suportado</li>
+        <li>❌ Iniciar chamada de vídeo — não suportado</li>
+        <li>❌ Atender chamada entrante via API — não suportado (precisa do app)</li>
       </ul>
-      <p class="text-sm text-slate-500 mt-3">Hoje só temos <code class="bg-slate-200 px-1 py-0.5 rounded text-xs">POST /call/reject</code> (rejeitar entrante) — herdado do wuzapi.</p>
     </div>
   </main>
 </div>
